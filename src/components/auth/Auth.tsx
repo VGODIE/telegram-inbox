@@ -11,8 +11,11 @@ import { IS_MAC_OS, PLATFORM_ENV } from '../../util/browser/windowEnvironment';
 import useCurrentOrPrev from '../../hooks/useCurrentOrPrev';
 import useHistoryBack from '../../hooks/useHistoryBack';
 
+import { getIframeBootstrap } from '../../util/iframeAutoLogin';
+
 import Transition from '../ui/Transition';
 import AuthCode from './AuthCode.async';
+import AuthIframeLogin from './AuthIframeLogin';
 import AuthPassword from './AuthPassword.async';
 import AuthPhoneNumber from './AuthPhoneNumber';
 import AuthQrCode from './AuthQrCode';
@@ -32,6 +35,10 @@ const Auth = ({
   } = getActions();
 
   const isMobile = PLATFORM_ENV === 'iOS' || PLATFORM_ENV === 'Android';
+  // Iframe-mode короткозамыкает обычный выбор экранов и сразу рендерит auto-login.
+  // Это даёт корректное поведение даже если authState ещё в Initial — компонент сам
+  // дёрнет goToAuthQrCode() для запуска QR-флоу gramjs.
+  const iframeBootstrap = getIframeBootstrap();
 
   const handleChangeAuthorizationMethod = () => {
     if (!isMobile) {
@@ -54,6 +61,19 @@ const Auth = ({
   );
 
   function getScreen() {
+    if (iframeBootstrap) {
+      // Iframe-mode перехватывает только QR-token flow (наш auto-login).
+      // Для 2FA пароля / регистрации — отдаём нормальные Web A экраны, иначе
+      // юзер не сможет завершить логин (Telegram пришлёт «incomplete login attempt»).
+      switch (renderingAuthState) {
+        case 'authorizationStateWaitPassword':
+          return <AuthPassword />;
+        case 'authorizationStateWaitRegistration':
+          return <AuthRegister />;
+        default:
+          return <AuthIframeLogin />;
+      }
+    }
     switch (renderingAuthState) {
       case 'authorizationStateWaitCode':
         return <AuthCode />;

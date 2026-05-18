@@ -29,6 +29,8 @@ import updateWebmanifest from './util/updateWebmanifest';
 
 import App from './components/App';
 
+import { getIframeBootstrap, listenForParentOrigin, notifyParentReady } from './util/iframeAutoLogin';
+
 import './assets/fonts/roboto.css';
 import './styles/index.scss';
 
@@ -96,6 +98,15 @@ async function init() {
 
     betterView();
   });
+
+  // Сообщаем parent'у (Gradly) что iframe загрузился — он скроет overlay-loader.
+  // Шлём независимо от того маунтится AuthIframeLogin или нет (повторный заход
+  // с готовой сессией в localStorage идёт сразу в Main, минуя auth-экран).
+  const bootstrap = getIframeBootstrap();
+  if (bootstrap) {
+    listenForParentOrigin();
+    notifyParentReady(bootstrap.accountId);
+  }
 
   if (DEBUG) {
     // eslint-disable-next-line no-console
