@@ -9,6 +9,7 @@ import {
   SESSION_ACCOUNT_PREFIX,
 } from '../config';
 import { IS_MULTIACCOUNT_SUPPORTED } from './browser/globalEnvironment';
+import { ALLOWED_ACCOUNT_SLOTS } from './iframeAutoLogin';
 
 const WORKER_NAME = typeof WorkerGlobalScope !== 'undefined' && globalThis.self instanceof WorkerGlobalScope
   ? globalThis.self.name : undefined;
@@ -39,6 +40,13 @@ export function getAccountsInfo() {
   const accountInfo: Record<number, AccountInfo> = {};
   for (const key of allSlots) {
     const i = Number(key.slice(SESSION_ACCOUNT_PREFIX.length));
+    // Inside the Gradly embed: only the slots owned by the Gradly user who is
+    // signed in right now. This is the single choke point for every consumer —
+    // the account menu, the "already authorized elsewhere" redirect in
+    // onUpdateUserAlreadyAuthorized, the userIds handed to initApi, the account
+    // counters. Sessions themselves stay in localStorage untouched, so
+    // switching back to another Gradly account restores its accounts as-is.
+    if (ALLOWED_ACCOUNT_SLOTS && !ALLOWED_ACCOUNT_SLOTS.has(i)) continue;
     const info = getAccountInfo(i);
     if (info) {
       accountInfo[i] = info;

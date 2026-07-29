@@ -23,6 +23,52 @@ export function getIframeBootstrap(): IframeBootstrap | null {
   return { accountId };
 }
 
+/**
+ * Running embedded in Gradly (as opposed to standalone web).
+ *
+ * Multi-account UI must stay hidden in this mode. The native switcher lists
+ * every slot found in localStorage (see getAccountsInfo), which is "every
+ * Telegram session ever authorized in this browser on our origin" — not
+ * "accounts of the currently signed-in Gradly user". Two more reasons:
+ * the parent renders its own account switcher and tracks the selected account,
+ * so in-iframe switching silently desyncs it; and "Add account" would start a
+ * raw Telegram login bypassing Gradly's connect flow (plan limit,
+ * telegram_accounts row, iframe_slot assignment).
+ *
+ * Evaluated once at import time — the embed never changes mode at runtime.
+ */
+export const IS_GRADLY_IFRAME = Boolean(getIframeBootstrap());
+
+/**
+ * Slots of the Telegram accounts owned by the Gradly user currently signed in,
+ * passed by the parent as `?slots=1,7,12`.
+ *
+ * localStorage is per-browser, not per-Gradly-user: slots pile up from every
+ * account ever authorized on this origin, including ones belonging to a Gradly
+ * user who signed in earlier on the same machine. Sessions are deliberately
+ * left in place (switching Gradly accounts back must not require a re-login),
+ * so instead we narrow what the app can see and act on — see getAccountsInfo.
+ *
+ * `undefined` means "do not filter": either we are not embedded, or the parent
+ * is an older build that does not send the parameter yet. Failing open keeps the
+ * two deploys independent — a mismatched pair degrades to today's behaviour
+ * rather than to an empty account list.
+ */
+function parseAllowedSlots(): Set<number> | undefined {
+  if (!IS_GRADLY_IFRAME) return undefined;
+  const raw = new URLSearchParams(window.location.search).get('slots');
+  if (!raw) return undefined;
+
+  const slots = raw
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0);
+
+  return slots.length ? new Set(slots) : undefined;
+}
+
+export const ALLOWED_ACCOUNT_SLOTS = parseAllowedSlots();
+
 export function isParentOriginAllowed(origin: string): boolean {
   return ALLOWED_PARENT_ORIGINS.includes(origin);
 }

@@ -11,6 +11,7 @@ import { selectActionMessageBg, selectTabState, selectTheme } from '../global/se
 import { IS_TAURI } from '../util/browser/globalEnvironment';
 import { IS_INSTALL_PROMPT_SUPPORTED, PLATFORM_ENV } from '../util/browser/windowEnvironment';
 import buildClassName from '../util/buildClassName';
+import { IS_GRADLY_IFRAME } from '../util/iframeAutoLogin';
 import { setupBeforeInstallPrompt } from '../util/installPrompt';
 import { ACCOUNT_SLOT, getAccountsInfo, getAccountSlotUrl } from '../util/multiaccount';
 import { hasEncryptedSession } from '../util/passcode';
@@ -78,8 +79,13 @@ const App = ({
 
   useEffect(() => {
     const hash = getInitialLocationHash();
-    // If there is no stored session on first slot, navigate to any other slot with stored session
-    if (!hasStoredSession() && !ACCOUNT_SLOT && !hash) {
+    // If there is no stored session on first slot, navigate to any other slot with stored session.
+    // Never inside the Gradly embed: the parent states which account to open (?accountId + ?account),
+    // and an empty slot is the normal cold-start — AuthIframeLogin signs that exact account in via
+    // the parent's token. Falling back to "any other slot" would silently open a DIFFERENT Telegram
+    // account (in a shared browser — another Gradly user's) while the parent's switcher still shows
+    // the requested one.
+    if (!hasStoredSession() && !ACCOUNT_SLOT && !hash && !IS_GRADLY_IFRAME) {
       const accounts = getAccountsInfo();
       Object.keys(accounts)
         .map(Number)

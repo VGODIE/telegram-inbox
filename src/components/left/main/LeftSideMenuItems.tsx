@@ -26,6 +26,7 @@ import { selectTabState, selectTheme, selectUser } from '../../../global/selecto
 import { selectPremiumLimit } from '../../../global/selectors/limits';
 import { selectSharedSettings } from '../../../global/selectors/sharedState';
 import { IS_MULTIACCOUNT_SUPPORTED, IS_TAURI } from '../../../util/browser/globalEnvironment';
+import { IS_GRADLY_IFRAME } from '../../../util/iframeAutoLogin';
 import { getPromptInstall } from '../../../util/installPrompt';
 import { switchPermanentWebVersion } from '../../../util/permanentWebVersion';
 import { getSystemTheme } from '../../../util/systemTheme';
@@ -145,7 +146,10 @@ const LeftSideMenuItems = ({
 
   return (
     <>
-      {IS_MULTIACCOUNT_SUPPORTED && currentUser && (
+      {/* Hidden inside the Gradly embed: the parent owns account switching,
+          and the native list shows every slot in this browser's localStorage
+          regardless of which Gradly user is signed in. See IS_GRADLY_IFRAME. */}
+      {IS_MULTIACCOUNT_SUPPORTED && !IS_GRADLY_IFRAME && currentUser && (
         <>
           <AccountMenuItems
             currentUser={currentUser}
