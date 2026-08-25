@@ -10,7 +10,7 @@
 
   <meta name="title" content="<%= htmlWebpackPlugin.options.appTitle %>">
   <meta name="description"
-    content="Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.">
+    content="Gradly inbox: work with replies from your own connected Telegram accounts.">
   <meta name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
@@ -30,7 +30,7 @@
   <meta property="og:url" content="<%= htmlWebpackPlugin.options.baseUrl %>">
   <meta property="og:title" content="<%= htmlWebpackPlugin.options.appTitle %>">
   <meta property="og:description"
-        content="Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.">
+        content="Gradly inbox: work with replies from your own connected Telegram accounts.">
   <meta property="og:image" content="./<%= htmlWebpackPlugin.options.mainIcon %>.png">
 
   <!-- Twitter -->
@@ -38,10 +38,14 @@
   <meta property="twitter:url" content="<%= htmlWebpackPlugin.options.baseUrl %>">
   <meta property="twitter:title" content="<%= htmlWebpackPlugin.options.appTitle %>">
   <meta property="twitter:description"
-    content="Telegram is a cloud-based mobile and desktop messaging app with a focus on security and speed.">
+    content="Gradly inbox: work with replies from your own connected Telegram accounts.">
   <meta property="twitter:image" content="./<%= htmlWebpackPlugin.options.mainIcon %>.png">
 
-  <link rel="canonical" href="https://web.telegram.org/">
+  <!-- Никакого canonical на web.telegram.org: страница раздаётся с нашего домена
+       и встраивается айфреймом в Gradly. Заявка «это официальный web.telegram.org»
+       вместе с брендовым title и дословным описанием с telegram.org читается
+       репутационными фильтрами (SmartScreen в Edge) как фишинг — по этой причине
+       содержимое фрейма у пользователей блокировалось. -->
   <link rel="apple-touch-icon" sizes="180x180" href="./<%= htmlWebpackPlugin.options.appleIcon %>.png">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
@@ -62,7 +66,7 @@
 <body id="root">
   <noscript>
     <video src="./nojs.mp4" class="nojs-video" muted loop autoplay playsinline disablePictureInPicture></video>
-    <h1>Telegram Web</h1>
+    <h1>Gradly Inbox</h1>
     <p>Please, enable JavaScript to open the app.</p>
   </noscript>
   <div id="portals"></div>

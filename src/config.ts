@@ -10,7 +10,12 @@ export const APP_CODE_NAME = 'A';
 export const APP_NAME = process.env.APP_NAME || `Telegram Web ${APP_CODE_NAME}`;
 
 export const PRODUCTION_HOSTNAME = 'web.telegram.org';
-export const PRODUCTION_URL = 'https://web.telegram.org/a';
+// Фолбек для BASE_URL (og:url / twitter:url в index.html). Раньше здесь стоял
+// https://web.telegram.org/a — сборка без явного BASE_URL начинала объявлять
+// себя официальным Telegram Web, что вместе с брендовыми метатегами читается
+// как фишинг и уже приводило к блокировке фрейма SmartScreen'ом. Держим адрес,
+// по которому клиент реально раздаётся.
+export const PRODUCTION_URL = 'https://www.gradly.ru/tg-app/';
 export const WEB_VERSION_BASE = 'https://web.telegram.org/'; // Used to redirect to other versions
 export const BASE_URL = process.env.BASE_URL;
 export const ACCOUNT_QUERY = 'account';

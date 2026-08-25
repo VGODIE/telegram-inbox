@@ -28,7 +28,10 @@ const {
   HTTPS_KEY_PATH = '',
 } = process.env;
 
-const DEFAULT_APP_TITLE = `Telegram${APP_ENV !== 'production' ? ' Beta' : ''}`;
+// Не `Telegram`: сборка живёт на нашем домене, и брендовый заголовок вместе с
+// остальными брендовыми метатегами давал репутационным фильтрам сигнатуру
+// фишинга. Переопределяется переменной APP_TITLE на билде.
+const DEFAULT_APP_TITLE = `Gradly Inbox${APP_ENV !== 'production' ? ' Beta' : ''}`;
 
 // GitHub workflow uses an empty string as the default value if it's not in repository variables, so we cannot define a default value here
 process.env.BASE_URL = process.env.BASE_URL || PRODUCTION_URL;
