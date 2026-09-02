@@ -35,16 +35,31 @@ const AuthIframeLogin = ({ auth, connectionState }: StateProps) => {
   const acceptedRef = useRef(false);
   const authReadySentRef = useRef(false);
 
-  // На монтировании запускаем стандартный QR-флоу gramjs (он сам циклит exportLoginToken)
-  // и начинаем слушать parent origin для последующих postMessage.
+  // На монтировании начинаем слушать parent origin для последующих postMessage.
   useEffect(() => {
     if (!accountId) return;
     listenForParentOrigin();
     notifyParentReady(accountId);
-    if (state !== 'authorizationStateWaitQrCode') {
+  }, [accountId]);
+
+  // Переводим gramjs на QR-флоу (он сам циклит exportLoginToken) по СОСТОЯНИЮ,
+  // а не один раз на монтировании. Причина — гонка на iOS/Android: там gramjs
+  // стартует с ввода номера (client.ts, initialMethod по платформе), а App
+  // монтирует auth-экран ещё до первого auth-состояния. Вызов goToAuthQrCode
+  // в этот момент молча теряется: в воркере ещё нет ожидающего промиса, и
+  // restartAuthWithQr выходит по `if (!authController.reject) return`. Дальше
+  // приходит authorizationStateWaitPhoneNumber, повторного вызова не было —
+  // и экран висел на «Авторизуем аккаунт через Gradly» навсегда. На десктопе
+  // не воспроизводилось: там initialMethod = qrCode и токен приходит сам.
+  //
+  // Только WaitPhoneNumber: RESTART_AUTH_WITH_QR ловится в signInUser именно на
+  // ожидании номера; на этапе кода тот же reject не переводит на QR.
+  useEffect(() => {
+    if (!accountId) return;
+    if (state === 'authorizationStateWaitPhoneNumber') {
       goToAuthQrCode();
     }
-  }, [accountId]);
+  }, [accountId, state]);
 
   // Когда gramjs обновил qrCode (новый login token) — отправляем родителю.
   // После первого успешного accept бэкендом — игнорим последующие токены: gramjs
