@@ -109,6 +109,21 @@ export function notifyParentAuthReady(accountId: string): void {
   );
 }
 
+export type IframeConnectionState = 'connecting' | 'ready' | 'broken';
+
+/**
+ * Состояние MTProto-соединения для родителя. Форк подключается к Telegram
+ * напрямую из браузера; при выключенном VPN он открывается из кэша сессии и
+ * висит в «Waiting for network» — снаружи это неотличимо от зависания.
+ * Родитель по этому сообщению показывает свою плашку про сеть/VPN.
+ */
+export function notifyParentConnectionState(accountId: string, state: IframeConnectionState): void {
+  window.parent.postMessage(
+    { type: 'gradly:tg:connection-state', accountId, state },
+    getParentOrigin(),
+  );
+}
+
 export function requestAcceptToken(
   accountId: string,
   tokenBase64: string,

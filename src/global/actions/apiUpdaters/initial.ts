@@ -14,6 +14,7 @@ import type { ActionReturnType, GlobalState } from '../../types';
 
 import { getCurrentTabId } from '../../../util/establishMultitabRole';
 import { getShippingError, shouldClosePaymentModal } from '../../../util/getReadableErrorText';
+import { getIframeBootstrap, notifyParentConnectionState } from '../../../util/iframeAutoLogin';
 import { getAccountsInfo, getAccountSlotUrl } from '../../../util/multiaccount';
 import { oldSetLanguage } from '../../../util/oldLangProvider';
 import { clearWebTokenAuth } from '../../../util/routing';
@@ -263,6 +264,14 @@ function onUpdateConnectionState<T extends GlobalState>(
     connectionState,
   };
   setGlobal(global);
+
+  const iframeBootstrap = getIframeBootstrap();
+  if (iframeBootstrap) {
+    const state = connectionState === 'connectionStateReady'
+      ? 'ready'
+      : connectionState === 'connectionStateBroken' ? 'broken' : 'connecting';
+    notifyParentConnectionState(iframeBootstrap.accountId, state);
+  }
 
   if (global.isSynced) {
     const channelStackIds = getOpenedShortpollChannelIds(global);
