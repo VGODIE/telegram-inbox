@@ -18,6 +18,7 @@ import {
 } from '../../../util/browser/windowEnvironment';
 import * as cacheApi from '../../../util/cacheApi';
 import { getCurrentTabId } from '../../../util/establishMultitabRole';
+import { getIframeBootstrap, IS_WEB_RELAY_REQUESTED } from '../../../util/iframeAutoLogin';
 import { ACCOUNT_SLOT, getAccountsInfo } from '../../../util/multiaccount';
 import { unsubscribe } from '../../../util/notifications';
 import { clearEncryptedSession, encryptSession, forgetPasscode } from '../../../util/passcode';
@@ -57,6 +58,7 @@ addActionHandler('initApi', (global, actions): ActionReturnType => {
 
   const isTestServer = global.config?.isTestServer;
   const accountsInfo = getAccountsInfo();
+  const iframeAccountId = getIframeBootstrap()?.accountId;
   const accountIds = Object.values(accountsInfo)
     .filter((info) => info.isTest === isTestServer)
     .map(({ userId }) => userId)
@@ -78,6 +80,7 @@ addActionHandler('initApi', (global, actions): ActionReturnType => {
     isTestServerRequested: hasTestParam,
     accountIds,
     hasPasskeySupport: IS_WEBAUTHN_SUPPORTED,
+    webRelay: IS_WEB_RELAY_REQUESTED && iframeAccountId ? { accountId: iframeAccountId } : undefined,
   });
 
   void setShouldEnableDebugLog(Boolean(shouldCollectDebugLogs));

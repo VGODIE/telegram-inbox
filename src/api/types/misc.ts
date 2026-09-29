@@ -32,6 +32,8 @@ export interface ApiInitialArgs {
   isTestServerRequested?: boolean;
   accountIds?: string[];
   hasPasskeySupport?: boolean;
+  /** Gradly: подключаться через релей прокси аккаунта, если relay-config подтвердит. */
+  webRelay?: { accountId: string };
 }
 
 export type ApiPasskeyOption = {

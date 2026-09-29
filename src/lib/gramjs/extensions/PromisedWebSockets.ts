@@ -1,8 +1,12 @@
 import { Mutex } from 'async-mutex';
 
+import { getWebRelayLink, invalidateWebRelayToken, isWebRelayActive } from './webRelay';
+
 const closeError = new Error('WebSocket was closed');
 const CONNECTION_TIMEOUT = 3000;
 const MAX_TIMEOUT = 30000;
+// Gradly relay: токен не принят (истёк или подпись не сошлась) — см. webRelay.ts
+const RELAY_CLOSE_BAD_TOKEN = 4401;
 
 export default class PromisedWebSockets {
   private readonly mutex = new Mutex();
@@ -85,12 +89,21 @@ export default class PromisedWebSockets {
   }
 
   connect(port: number, ip: string, isTestServer = false, isPremium = false) {
+    // Gradly: аккаунт с прокси ходит через релей. Тестовые DC релей не
+    // обслуживает — для них прежний путь.
+    if (isWebRelayActive() && !isTestServer) {
+      return getWebRelayLink(ip, isPremium).then((link) => this.open(link, ip));
+    }
+    return this.open(this.getWebSocketLink(ip, port, isTestServer, isPremium), ip);
+  }
+
+  private open(website: string, ip: string) {
     this.stream = Buffer.alloc(0);
     this.canRead = new Promise((resolve) => {
       this.resolveRead = resolve;
     });
     this.closed = false;
-    this.website = this.getWebSocketLink(ip, port, isTestServer, isPremium);
+    this.website = website;
     this.client = new WebSocket(this.website, 'binary');
     this.client.binaryType = 'arraybuffer';
 
@@ -116,6 +129,7 @@ export default class PromisedWebSockets {
 
       this.client.onclose = (event) => {
         const { code, reason, wasClean } = event;
+        if (code === RELAY_CLOSE_BAD_TOKEN) invalidateWebRelayToken();
         if (code !== 1000) {
           // eslint-disable-next-line no-console
           console.error(`Socket ${ip} closed. Code: ${code}, reason: ${reason}, was clean: ${wasClean}`);

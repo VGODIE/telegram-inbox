@@ -8,6 +8,7 @@ import type { TwoFaParams } from '../../../lib/gramjs/client/2fa';
 import TelegramClient from '../../../lib/gramjs/client/TelegramClient';
 import { RPCError } from '../../../lib/gramjs/errors';
 import { Logger as GramJsLogger } from '../../../lib/gramjs/extensions/index';
+import { configureWebRelay } from '../../../lib/gramjs/extensions/webRelay';
 
 import type { ThreadId } from '../../../types';
 import type {
@@ -95,8 +96,11 @@ export async function init(initialArgs: ApiInitialArgs, onConnected?: NoneToVoid
     userAgent, platform, sessionData, isWebmSupported, maxBufferSize, webAuthToken, dcId,
     mockScenario, shouldForceHttpTransport, shouldAllowHttpTransport,
     shouldDebugExportedSenders, langCode, isTestServerRequested, accountIds,
-    hasPasskeySupport,
+    hasPasskeySupport, webRelay,
   } = initialArgs;
+
+  // Gradly: до создания клиента — первое же подключение должно пойти через релей
+  const isRelayActive = webRelay ? await configureWebRelay(webRelay.accountId) : false;
 
   const session = new sessions.CallbackSession(sessionData, onSessionUpdate);
 
@@ -115,8 +119,9 @@ export async function init(initialArgs: ApiInitialArgs, onConnected?: NoneToVoid
       useWSS: true,
       additionalDcsDisabled: IS_TEST,
       shouldDebugExportedSenders,
-      shouldForceHttpTransport,
-      shouldAllowHttpTransport,
+      // HTTP-фолбек (apiw1) релей не обслуживает — он ушёл бы мимо прокси аккаунта
+      shouldForceHttpTransport: isRelayActive ? false : shouldForceHttpTransport,
+      shouldAllowHttpTransport: isRelayActive ? false : shouldAllowHttpTransport,
       dcId,
       langPack: LANG_PACK,
       langCode,

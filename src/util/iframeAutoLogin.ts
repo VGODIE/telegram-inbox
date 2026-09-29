@@ -69,6 +69,15 @@ function parseAllowedSlots(): Set<number> | undefined {
 
 export const ALLOWED_ACCOUNT_SLOTS = parseAllowedSlots();
 
+/**
+ * Родитель просит подключаться через релей прокси аккаунта (`?relay=1`).
+ * Сам флаг ничего не включает: worker спросит /api/telegram/relay-config и при
+ * любом отказе останется на прямом подключении. Без флага — ни запроса, ни
+ * изменений в подключении (см. lib/gramjs/extensions/webRelay.ts).
+ */
+export const IS_WEB_RELAY_REQUESTED = IS_GRADLY_IFRAME
+  && new URLSearchParams(window.location.search).get('relay') === '1';
+
 export function isParentOriginAllowed(origin: string): boolean {
   return ALLOWED_PARENT_ORIGINS.includes(origin);
 }
