@@ -5,22 +5,31 @@ import type { GlobalState } from '../global/types';
 import type { ThemeKey } from '../types';
 import type { UiLoaderPage } from './common/UiLoader';
 
-import { DARK_THEME_BG_COLOR, INACTIVE_MARKER, LIGHT_THEME_BG_COLOR, PAGE_TITLE, PAGE_TITLE_TAURI } from '../config';
+import {
+  DARK_THEME_BG_COLOR, INACTIVE_MARKER, LIGHT_THEME_BG_COLOR, PAGE_TITLE, PAGE_TITLE_TAURI,
+} from '../config';
 import { forceMutation } from '../lib/fasterdom/stricterdom.ts';
-import { selectActionMessageBg, selectTabState, selectTheme } from '../global/selectors';
+import {
+  selectActionMessageBg, selectTabState, selectTheme, selectThemeValues,
+} from '../global/selectors';
 import { IS_TAURI } from '../util/browser/globalEnvironment';
 import { IS_INSTALL_PROMPT_SUPPORTED, PLATFORM_ENV } from '../util/browser/windowEnvironment';
 import buildClassName from '../util/buildClassName';
 import { IS_GRADLY_IFRAME } from '../util/iframeAutoLogin';
 import { setupBeforeInstallPrompt } from '../util/installPrompt';
-import { ACCOUNT_SLOT, getAccountsInfo, getAccountSlotUrl } from '../util/multiaccount';
-import { hasEncryptedSession } from '../util/passcode';
-import { getInitialLocationHash, parseInitialLocationHash } from '../util/routing';
+import { ACCOUNT_SLOT, getAccountSlotUrl, getFirstLoggedInAccountSlot } from '../util/multiaccount';
+import { hasLegacyEncryptedSession } from '../util/passcode';
+import { getInitialLocationHash, getPendingWebLogin } from '../util/routing';
 import { checkSessionLocked, hasStoredSession } from '../util/sessions';
+import { getActionMessageBg, getWallpaperBaseColor } from '../util/wallpaper';
+import { handoffWebLogin } from '../util/webLoginHandoff';
 import { updateSizes } from '../util/windowSize';
 
 import useTauriDrag from '../hooks/tauri/useTauriDrag';
 import useAppLayout from '../hooks/useAppLayout';
+import useFileHoverOpen, {
+  FILE_HOVER_OPEN_SELECTOR, hasFiles,
+} from '../hooks/useFileHoverOpen';
 import usePrevious from '../hooks/usePrevious';
 import { useSignalEffect } from '../hooks/useSignalEffect';
 import { getIsInBackground } from '../hooks/window/useBackgroundMode';
@@ -44,6 +53,7 @@ type StateProps = {
   hasWebAuthTokenFailed?: boolean;
   isTestServer?: boolean;
   theme: ThemeKey;
+  customBackgroundColor?: string;
   actionMessageBg?: string;
 };
 
@@ -66,6 +76,7 @@ const App = ({
   hasWebAuthTokenFailed,
   isTestServer,
   theme,
+  customBackgroundColor,
   actionMessageBg,
 }: StateProps) => {
   const { isMobile } = useAppLayout();
@@ -85,29 +96,21 @@ const App = ({
     // the parent's token. Falling back to "any other slot" would silently open a DIFFERENT Telegram
     // account (in a shared browser — another Gradly user's) while the parent's switcher still shows
     // the requested one.
-    if (!hasStoredSession() && !ACCOUNT_SLOT && !hash && !IS_GRADLY_IFRAME) {
-      const accounts = getAccountsInfo();
-      Object.keys(accounts)
-        .map(Number)
-        .sort((a, b) => b - a)
-        .forEach((key) => {
-          const slot = Number(key);
-          const account = accounts[slot];
-          if (account) {
-            const url = getAccountSlotUrl(slot);
-            window.location.href = `${url}#${hash || 'login'}`;
-          }
-        });
+    if (!getPendingWebLogin() && !hasStoredSession() && !ACCOUNT_SLOT && !hash && !IS_GRADLY_IFRAME) {
+      const firstLoggedInAccountSlot = getFirstLoggedInAccountSlot();
+      if (firstLoggedInAccountSlot) {
+        const url = getAccountSlotUrl(firstLoggedInAccountSlot);
+        window.location.href = `${url}#${hash || 'login'}`;
+      }
     }
 
-    // TODO[Passcode]: Remove when multiacc passcode is implemented
-    const checkMultiaccPasscode = async () => {
-      if (checkSessionLocked() && ACCOUNT_SLOT && await hasEncryptedSession()) {
-        const url = getAccountSlotUrl(1);
-        window.location.href = url;
-      }
-    };
-    checkMultiaccPasscode();
+    if (checkSessionLocked() && ACCOUNT_SLOT) {
+      void hasLegacyEncryptedSession().then(async (hasLegacySession) => {
+        if (hasLegacySession && !await handoffWebLogin(getAccountSlotUrl(1))) {
+          window.location.replace(getAccountSlotUrl(1));
+        }
+      }).catch(() => undefined);
+    }
   }, []);
 
   // Prevent drop on elements that do not accept it
@@ -116,8 +119,11 @@ const App = ({
     const handleDrag = (e: DragEvent) => {
       e.preventDefault();
       if (!e.dataTransfer) return;
-      if (!(e.target as HTMLElement).dataset.dropzone) {
-        e.dataTransfer.dropEffect = 'none';
+      if (!(e.target instanceof Element && e.target.closest('[data-dropzone]'))) {
+        const isFileHoverOpen = hasFiles(e.dataTransfer)
+          && e.target instanceof Element
+          && Boolean(e.target.closest(FILE_HOVER_OPEN_SELECTOR));
+        e.dataTransfer.dropEffect = isFileHoverOpen ? 'link' : 'none';
       } else {
         e.dataTransfer.dropEffect = 'copy';
       }
@@ -188,7 +194,7 @@ const App = ({
   if (activeKey !== AppScreens.lock
     && activeKey !== AppScreens.inactive
     && activeKey !== AppScreens.main
-    && parseInitialLocationHash()?.tgWebAuthToken
+    && getPendingWebLogin()
     && !hasWebAuthTokenFailed) {
     page = 'main';
     activeKey = AppScreens.main;
@@ -222,30 +228,36 @@ const App = ({
   }
 
   useTauriDrag();
+  useFileHoverOpen();
 
   useLayoutEffect(() => {
     document.body.classList.add(styles.bg);
   }, []);
 
   useLayoutEffect(() => {
+    // Prefer the chosen wallpaper's base color, so the pre-render base matches the
+    // actual wallpaper instead of flashing the built-in default first.
     document.body.style.setProperty(
       '--theme-background-color',
-      theme === 'dark' ? DARK_THEME_BG_COLOR : LIGHT_THEME_BG_COLOR,
+      customBackgroundColor || (theme === 'dark' ? DARK_THEME_BG_COLOR : LIGHT_THEME_BG_COLOR),
     );
-  }, [theme]);
+  }, [theme, customBackgroundColor]);
 
   useLayoutEffect(() => {
-    if (actionMessageBg) {
-      document.body.style.setProperty('--action-message-bg', actionMessageBg);
-    }
-  }, [actionMessageBg]);
+    // Fall back to the theme default when the tint is unset (e.g. a photo wallpaper without a
+    // thumbnail), so service chips don't keep the previous wallpaper's tint.
+    document.body.style.setProperty(
+      '--action-message-bg',
+      actionMessageBg || getActionMessageBg(theme)!,
+    );
+  }, [actionMessageBg, theme]);
 
   const getIsInBackgroundLocal = getIsInBackground;
   useSignalEffect(() => {
     // Mutation forced to avoid RAF throttling in background
     forceMutation(() => {
       document.body.classList.toggle('in-background', getIsInBackgroundLocal());
-    }, document.body);
+    }, document.body, true);
   }, [getIsInBackgroundLocal]);
 
   return (
@@ -271,13 +283,17 @@ const App = ({
 export default withGlobal(
   (global): Complete<StateProps> => {
     const { state: authState, hasWebAuthTokenFailed, hasWebAuthTokenPasswordRequired } = global.auth;
+    const theme = selectTheme(global);
+    const themeValues = selectThemeValues(global, theme);
+
     return {
       authState,
       isScreenLocked: global.passcode?.isScreenLocked,
       hasPasscode: global.passcode?.hasPasscode,
       inactiveReason: selectTabState(global).inactiveReason,
       hasWebAuthTokenFailed: hasWebAuthTokenFailed || hasWebAuthTokenPasswordRequired,
-      theme: selectTheme(global),
+      theme,
+      customBackgroundColor: getWallpaperBaseColor(theme, themeValues || {}),
       isTestServer: global.config?.isTestServer,
       actionMessageBg: selectActionMessageBg(global),
     };

@@ -24,7 +24,7 @@
 
     opacity: 0;
     background-color: var(--color-background);
-    box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-island);
 
     transition: opacity 150ms;
 
@@ -64,7 +64,9 @@
 
     width: fit-content;
 
-    background-color: var(--color-primary-opacity);
+    // An opaque base prevents the original labels from showing through the highlighted copies
+    background-color: var(--color-background);
+    background-image: linear-gradient(var(--color-primary-opacity), var(--color-primary-opacity));
 
     transition: clip-path var(--slide-transition);
 
@@ -134,7 +136,7 @@
 
       position: absolute;
       z-index: 9;
-      top: 50%;
+      top: var(--fade-mask-top, 50%);
       left: 0;
 
       width: 100%;

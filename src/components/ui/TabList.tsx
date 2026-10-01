@@ -10,6 +10,7 @@ export type { TabWithProperties };
 import buildClassName from '../../util/buildClassName';
 import renderText from '../common/helpers/renderText';
 
+import { handleFileHoverOpenEvent } from '../../hooks/useFileHoverOpen';
 import useFlag from '../../hooks/useFlag';
 import useHorizontalScroll from '../../hooks/useHorizontalScroll';
 import useLastCallback from '../../hooks/useLastCallback';
@@ -39,6 +40,7 @@ type OwnProps = {
   fadeMaskClassName?: string;
   onSwitchTab: (index: number) => void;
   renderExtra?: (tab: TabWithProperties, index: number) => TeactNode;
+  onFileHoverOpen?: (index: number) => void;
 };
 
 const TabList = ({
@@ -54,6 +56,7 @@ const TabList = ({
   fadeMaskClassName,
   renderExtra,
   onSwitchTab,
+  onFileHoverOpen,
 }: OwnProps) => {
   const containerRef = useRef<HTMLDivElement>();
   const clipPathContainerRef = useRef<HTMLDivElement>();
@@ -93,6 +96,10 @@ const TabList = ({
     onSwitchTab(index);
   });
 
+  const handleFileHoverOpen = useLastCallback((index: number, e: Event) => {
+    handleFileHoverOpenEvent(e, () => onFileHoverOpen!(index));
+  });
+
   const handleContextMenu = useLastCallback((index: number, e: React.MouseEvent) => {
     const actions = tabs[index]?.contextActions;
     if (!actions?.length) return;
@@ -124,8 +131,9 @@ const TabList = ({
   const hasContextActions = tabs.some((tab) => tab.contextActions?.length);
 
   const renderTab = (tab: TabWithProperties, index: number) => {
+    const customEmojiId = tab.customEmojiDocumentId
+      || (typeof tab.emoticon === 'object' ? tab.emoticon.documentId : undefined);
     const stringEmoticon = typeof tab.emoticon === 'string' ? tab.emoticon : undefined;
-    const customEmoji = typeof tab.emoticon === 'object' ? tab.emoticon : undefined;
 
     return (
       <div
@@ -137,12 +145,14 @@ const TabList = ({
           stretched && styles.stretched,
         )}
         onClick={() => handleTabClick(index)}
+        data-file-hover-open={onFileHoverOpen ? true : undefined}
+        onFileHoverOpen={onFileHoverOpen ? (e) => handleFileHoverOpen(index, e) : undefined}
         onContextMenu={hasContextActions ? (e) => handleContextMenu(index, e) : undefined}
       >
         {stringEmoticon && <span className={styles.tabEmoji}>{stringEmoticon}</span>}
-        {customEmoji && (
+        {customEmojiId && (
           <CustomEmoji
-            documentId={customEmoji.documentId}
+            documentId={customEmojiId}
             className={styles.tabEmoji}
             size={EMOJI_SIZE}
             shouldNotLoop
@@ -151,7 +161,7 @@ const TabList = ({
         {tab.icon && <Icon name={tab.icon} className={styles.tabIcon} />}
         {typeof tab.title === 'string' ? renderText(tab.title) : tab.title}
         {renderExtra?.(tab, index)}
-        {tab.isBlocked && <Icon name="lock-badge" className={styles.lockIcon} />}
+        {tab.isBlocked && <Icon name="lock-filled" className={styles.lockIcon} />}
       </div>
     );
   };

@@ -43,6 +43,7 @@ export type OwnProps = {
   secondButtonLabel?: string;
   description?: string;
   onClose: () => void;
+  onCloseAnimationEnd?: NoneToVoidFunction;
   onSubmit: (date: Date, repeatMode?: RepeatedMessageMode) => void;
   onDateChange?: (date: Date) => void;
   onSecondButtonClick?: NoneToVoidFunction;
@@ -79,6 +80,7 @@ const CalendarModal = ({
   isTestServer,
   isCurrentUserPremium,
   onClose,
+  onCloseAnimationEnd,
   onSubmit,
   onDateChange,
   onSecondButtonClick,
@@ -351,7 +353,7 @@ const CalendarModal = ({
           onClick={handleRepeatModeClick}
           noForcedUpperCase
           isText
-          iconName={isCurrentUserPremium ? 'down' : 'lock-badge'}
+          iconName={isCurrentUserPremium ? 'down' : 'lock-filled'}
           iconClassName={isCurrentUserPremium ? dropDownIconClass : undefined}
           iconAlignment="end"
         >
@@ -378,6 +380,7 @@ const CalendarModal = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      onCloseAnimationEnd={onCloseAnimationEnd}
       className="CalendarModal"
       onEnter={handleSubmit}
       dialogRef={dialogRef}

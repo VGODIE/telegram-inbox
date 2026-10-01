@@ -17,9 +17,9 @@ import { getShippingError, shouldClosePaymentModal } from '../../../util/getRead
 import { getIframeBootstrap, notifyParentConnectionState } from '../../../util/iframeAutoLogin';
 import { getAccountsInfo, getAccountSlotUrl } from '../../../util/multiaccount';
 import { oldSetLanguage } from '../../../util/oldLangProvider';
-import { clearWebTokenAuth } from '../../../util/routing';
 import { setServerTimeOffset } from '../../../util/serverTime';
 import { updateSessionUserId } from '../../../util/sessions';
+import { finishWebLogin, rejectWebLogin } from '../../../util/webLogin';
 import { forceWebsync } from '../../../util/websync';
 import {
   addActionHandler, getActions, getGlobal, setGlobal,
@@ -81,6 +81,7 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
       global = { ...global, isSynced: false };
       setGlobal(global);
 
+      global = getGlobal();
       onUpdateConnectionState(global, actions, {
         '@type': 'updateConnectionState',
         connectionState: 'connectionStateConnecting',
@@ -228,7 +229,7 @@ function onUpdateUserAlreadyAuthorized<T extends GlobalState>(global: T, update:
 }
 
 function onUpdateWebAuthTokenFailed<T extends GlobalState>(global: T) {
-  clearWebTokenAuth();
+  rejectWebLogin();
 
   global = updateAuth(global, {
     hasWebAuthTokenFailed: true,
@@ -327,4 +328,5 @@ function onUpdateCurrentUser<T extends GlobalState>(global: T, update: ApiUpdate
   setGlobal(global);
 
   updateSessionUserId(currentUser.id);
+  finishWebLogin(currentUser.id);
 }

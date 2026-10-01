@@ -65,10 +65,10 @@ type GroupCallState = {
 
 let state: GroupCallState | undefined;
 
-function logGroupCall(message: string, data: Record<string, unknown> = {}) {
+function logGroupCall<Data extends object>(message: string, data?: Data) {
   if (!DEBUG_CALLS) return;
 
-  logDebugMessage('debug', `[GroupCall] ${message}`, data);
+  logDebugMessage('debug', `[GroupCall] ${message}`, data || {});
 }
 
 function summarizeError(error: unknown) {
@@ -1024,7 +1024,7 @@ function handleTrack(e: RTCTrackEvent) {
   const { userId, isPresentation } = ssrc;
   const participant = state.participants?.find((p) => p.id === userId);
 
-  const streamType = (e.track.kind === 'video' ? (isPresentation ? 'presentation' : 'video') : 'audio') as StreamType;
+  const streamType = (e.track.kind === 'video' ? (isPresentation ? 'presentation' : 'video') : 'audio');
 
   e.track.onended = () => {
     logGroupCall('remote track ended', {

@@ -1,4 +1,6 @@
-import type { ApiPhoneCall, ApiPhoneCallCustomParameters } from '../../../api/types';
+import type {
+  ApiPhoneCall, ApiPhoneCallConfig, ApiPhoneCallCustomParameters,
+} from '../../../api/types';
 import type { ApiCallProtocol } from '../../../lib/vibecalls';
 import type { ActionReturnType } from '../../types';
 
@@ -6,7 +8,7 @@ import { CALL_PROTOCOL_LIBRARY_VERSIONS, DEBUG_CALLS } from '../../../config';
 import {
   handleUpdateGroupCallConnection,
   handleUpdateGroupCallParticipants,
-  joinPhoneCall, processSignalingMessage, sanitizePrimitiveRecord,
+  joinPhoneCall, processSignalingMessage,
 } from '../../../lib/vibecalls';
 import { ARE_CALLS_SUPPORTED } from '../../../util/browser/windowEnvironment';
 import { logDebugMessage } from '../../../util/debugConsole';
@@ -22,6 +24,10 @@ import { selectActiveGroupCall, selectGroupCallParticipant, selectPhoneCallUser 
 
 let phoneCallSignalingDataPromise = Promise.resolve();
 let groupCallNegotiationPromise = Promise.resolve();
+
+const DEFAULT_PHONE_CALL_CONFIG: ApiPhoneCallConfig = {
+  shouldUseSctp: true,
+};
 
 type QueuedPhoneCallSignalingData = {
   callId?: string;
@@ -102,6 +108,14 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
       if (!ARE_CALLS_SUPPORTED) return undefined;
       const { phoneCall, currentUserId } = global;
 
+      // Another call (P2P or group) is already active - ignore here so we don't show the popup;
+      // the non-async handler discards the new call as busy.
+      const isInOtherPhoneCall = Boolean(phoneCall?.id) && update.call.id !== phoneCall?.id;
+      const isInGroupCall = Boolean(global.groupCalls.activeGroupCallId) && !phoneCall;
+      if (isInOtherPhoneCall || isInGroupCall) {
+        return undefined;
+      }
+
       const call: ApiPhoneCall = {
         ...phoneCall,
         ...update.call,
@@ -115,16 +129,6 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
       };
       setGlobal(global);
       global = getGlobal();
-
-      if (phoneCall && phoneCall.id && call.id !== phoneCall.id) {
-        if (call.state !== 'discarded') {
-          callApi('discardCall', {
-            call,
-            isBusy: true,
-          });
-        }
-        return undefined;
-      }
 
       const {
         accessHash, state, connections, gB,
@@ -154,7 +158,11 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
         (async () => {
           try {
             const activeCallId = call.id;
-            const result = await callApi('confirmPhoneCall', [gB, EMOJI_DATA, EMOJI_OFFSETS]);
+            const result = await callApi('confirmPhoneCall', {
+              gAOrB: gB,
+              emojiData: EMOJI_DATA,
+              emojiOffsets: EMOJI_OFFSETS,
+            });
             if (!result) {
               logPhoneCallDebug('Failed to confirm accepted phone call', {
                 callId: activeCallId,
@@ -198,21 +206,18 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
         (async () => {
           try {
             const activeCallId = call.id;
-            let callConfigResult: Record<string, unknown> | undefined;
+            let callConfig = DEFAULT_PHONE_CALL_CONFIG;
             try {
-              callConfigResult = await callApi('fetchCallConfig');
+              callConfig = await callApi('fetchCallConfig') || DEFAULT_PHONE_CALL_CONFIG;
             } catch (err) {
               logPhoneCallDebug('Failed to fetch phone call config', {
                 error: err instanceof Error ? err.message : String(err),
               });
             }
 
-            const callConfig = sanitizePrimitiveRecord(callConfigResult) || {};
-            const customParameters: ApiPhoneCallCustomParameters = Object.assign(
-              {},
-              callConfig,
-              call.customParameters,
-            );
+            const customParameters: ApiPhoneCallCustomParameters = {
+              shouldUseSctp: call.customParameters?.shouldUseSctp ?? callConfig.shouldUseSctp,
+            };
             call.customParameters = customParameters;
             global = getGlobal();
             if (global.phoneCall?.id === call.id) {
@@ -228,7 +233,17 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
 
             global = getGlobal();
             if (global.phoneCall?.id === call.id) {
-              await callApi('setPhoneCallSctpEnabled', !customParameters.network_signaling_nosctp);
+              await callApi('setPhoneCallSctpEnabled', customParameters.shouldUseSctp);
+            }
+
+            if (isOutgoing) {
+              if (!call.keyFingerprint) {
+                throw new Error('Missing phone call key fingerprint');
+              }
+
+              await callApi('verifyPhoneCallKeyFingerprint', {
+                expectedKeyFingerprint: call.keyFingerprint,
+              });
             }
 
             if (!isOutgoing) {
@@ -238,7 +253,24 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
                 return;
               }
 
-              const result = await callApi('confirmPhoneCall', [call.gAOrB!, EMOJI_DATA, EMOJI_OFFSETS]);
+              if (!call.gAHash) {
+                throw new Error('Missing phone call gA hash');
+              }
+
+              if (!call.keyFingerprint) {
+                throw new Error('Missing phone call key fingerprint');
+              }
+
+              const result = await callApi(
+                'confirmPhoneCall',
+                {
+                  gAOrB: call.gAOrB!,
+                  emojiData: EMOJI_DATA,
+                  emojiOffsets: EMOJI_OFFSETS,
+                  gAHash: call.gAHash,
+                  expectedKeyFingerprint: call.keyFingerprint,
+                },
+              );
               if (!result) {
                 logPhoneCallDebug('Failed to confirm phone call', {
                   callId: activeCallId,
@@ -350,7 +382,7 @@ async function processPhoneCallSignalingData(queued: QueuedPhoneCallSignalingDat
 
   let message;
   try {
-    message = await callApi('decodePhoneCallData', [data]);
+    message = await callApi('decodePhoneCallData', { data });
   } catch (err) {
     logPhoneCallDebug('Failed to decode phone call signaling data', {
       error: err instanceof Error ? err.message : String(err),
@@ -398,7 +430,7 @@ async function processPhoneCallSignalingData(queued: QueuedPhoneCallSignalingDat
   }
 }
 
-function logPhoneCallDebug(message: string, data: Record<string, unknown>) {
+function logPhoneCallDebug<Data extends object>(message: string, data: Data) {
   if (!DEBUG_CALLS) return;
 
   logDebugMessage('warn', `[PhoneCall] ${message}`, data);

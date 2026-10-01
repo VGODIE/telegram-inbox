@@ -65,6 +65,7 @@ import ListItem from '../../ui/ListItem';
 import CompactMapPreview from '../CompactMapPreview';
 import CustomEmoji from '../CustomEmoji';
 import Icon from '../icons/Icon';
+import QrIcon from '../icons/QrIcon';
 import SafeLink from '../SafeLink';
 import BusinessHours from './BusinessHours';
 import UserBirthday from './UserBirthday';
@@ -76,7 +77,6 @@ type OwnProps = {
   isOwnProfile?: boolean;
   isSavedDialog?: boolean;
   isInSettings?: boolean;
-  withIslands?: boolean;
   className?: string;
   style?: string;
 };
@@ -132,7 +132,6 @@ const ChatExtra = ({
   className,
   style,
   isInSettings,
-  withIslands,
   canViewSubscribers,
 }: OwnProps & StateProps) => {
   const {
@@ -147,6 +146,7 @@ const ChatExtra = ({
     toggleUserEmojiStatusPermission,
     toggleUserLocationPermission,
     requestNextManagementScreen,
+    openQrCodeModal,
   } = getActions();
 
   const {
@@ -181,8 +181,7 @@ const ChatExtra = ({
   } = useCollapsibleLines(
     noteTextRef,
     NOTE_MAX_LINES,
-    undefined,
-    !shouldRenderNote,
+    { isDisabled: !shouldRenderNote },
   );
 
   useEffectWithPrevDeps(([prevPeerId]) => {
@@ -202,6 +201,7 @@ const ChatExtra = ({
         width={width}
         height={height}
         zoom={zoom}
+        shouldShowPin
       />
     );
   }, [businessLocation, width, height, zoom]);
@@ -309,6 +309,12 @@ const ChatExtra = ({
     requestNextManagementScreen({ screen: ManagementScreens.ChannelSubscribers });
   });
 
+  const handleOpenQrCode = useLastCallback((e: React.MouseEvent) => {
+    stopEvent(e);
+    if (!peerId) return;
+    openQrCodeModal({ peerId });
+  });
+
   const handleOpenApp = useLastCallback(() => {
     const botId = user?.id;
     if (!botId) {
@@ -372,11 +378,22 @@ const ChatExtra = ({
 
     return (
       <ListItem
-        icon={isChat ? 'link' : 'mention'}
+        icon={isChat ? 'link' : 'mention-filled'}
+        iconBg={isChat ? 'orange' : 'blue'}
         multiline
         narrow
         ripple
-
+        rightElement={(
+          <Button
+            round
+            size="smaller"
+            color="translucent"
+            ariaLabel={lang('QrCodeTitle')}
+            onClick={handleOpenQrCode}
+          >
+            <QrIcon />
+          </Button>
+        )}
         onClick={() => {
           handleUsernameClick(mainUsername, isChat);
         }}
@@ -392,17 +409,15 @@ const ChatExtra = ({
     );
   }
 
-  const Wrapper = withIslands ? Island : 'div';
-
   return (
     <div className={buildClassName('ChatExtra', className)} style={style || createVtnStyle('chatExtra')}>
       {user && userFullInfo?.isUnofficialSecurityRisk && (
-        <Wrapper className={withIslands ? styles.securityRiskIsland : undefined}>
+        <Island className={styles.securityRiskIsland}>
           <div className={styles.unofficialSecurityRisk}>
             <Icon className={buildClassName(styles.riskIcon, 'in-text-icon')} name="info-filled" />
             {lang('UnofficialSecurityRisk', { peer: getPeerTitle(lang, user) })}
           </div>
-        </Wrapper>
+        </Island>
       )}
       {personalChannel && (
         <div className={styles.personalChannel} style={createVtnStyle('personalChannel')}>
@@ -410,7 +425,7 @@ const ChatExtra = ({
           <span className={styles.personalChannelSubscribers}>
             {oldLang('Subscribers', personalChannel.membersCount, 'i')}
           </span>
-          <Wrapper className={styles.personalChannelItem}>
+          <Island className={styles.personalChannelItem}>
             <Chat
               chatId={personalChannel.id}
               orderDiff={0}
@@ -419,13 +434,14 @@ const ChatExtra = ({
               isPreview
               previewMessageId={personalChannelMessageId}
             />
-          </Wrapper>
+          </Island>
         </div>
       )}
-      <Wrapper>
+      <Island>
         {Boolean(formattedNumber?.length) && (
           <ListItem
-            icon="phone"
+            icon="phone-filled"
+            iconBg="green"
             className={styles.phone}
             multiline
             narrow
@@ -440,7 +456,8 @@ const ChatExtra = ({
         {activeUsernames && renderUsernames(activeUsernames)}
         {description && Boolean(description.length) && (
           <ListItem
-            icon="info"
+            icon="info-filled"
+            iconBg="gray"
             className={styles.description}
             multiline
             narrow
@@ -464,6 +481,7 @@ const ChatExtra = ({
         {((!activeChatUsernames && canInviteUsers) || isTopicInfo) && link && (
           <ListItem
             icon="link"
+            iconBg="orange"
             multiline
             className={styles.link}
             narrow
@@ -499,7 +517,8 @@ const ChatExtra = ({
         )}
         {!isOwnProfile && !isInSettings && (
           <ListItem
-            icon={isMuted ? 'mute' : 'unmute'}
+            icon="notifications-filled"
+            iconBg="red"
             className={styles.notifications}
             narrow
             ripple
@@ -519,7 +538,8 @@ const ChatExtra = ({
         )}
         {businessLocation && (
           <ListItem
-            icon="location"
+            icon="location-filled"
+            iconBg="green"
             ripple
             multiline
             narrow
@@ -534,8 +554,8 @@ const ChatExtra = ({
         )}
         {shouldRenderNote && (
           <ListItem
-            icon="note"
-            iconClassName={styles.noteListItemIcon}
+            icon="note-filled"
+            iconBg="green"
             multiline
             narrow
             isStatic
@@ -581,7 +601,8 @@ const ChatExtra = ({
         )}
         {hasSavedMessages && !isOwnProfile && !isInSettings && (
           <ListItem
-            icon="saved-messages"
+            icon="saved-messages-filled"
+            iconBg="blue"
             className={styles.savedMessages}
             narrow
             ripple
@@ -593,7 +614,8 @@ const ChatExtra = ({
         )}
         {userFullInfo && 'isBotAccessEmojiGranted' in userFullInfo && (
           <ListItem
-            icon="user"
+            icon="user-filled"
+            iconBg="blue"
             className={styles.botEmojiStatus}
             narrow
             ripple
@@ -609,7 +631,8 @@ const ChatExtra = ({
         )}
         {botAppPermissions?.geolocation !== undefined && (
           <ListItem
-            icon="location"
+            icon="location-filled"
+            iconBg="green"
             className={styles.botLocation}
             narrow
             ripple
@@ -625,7 +648,8 @@ const ChatExtra = ({
         )}
         {canViewSubscribers && (
           <ListItem
-            icon="group"
+            icon="group-filled"
+            iconBg="green"
             narrow
             multiline
             ripple
@@ -647,7 +671,7 @@ const ChatExtra = ({
             {botVerification.description}
           </div>
         )}
-      </Wrapper>
+      </Island>
     </div>
   );
 };

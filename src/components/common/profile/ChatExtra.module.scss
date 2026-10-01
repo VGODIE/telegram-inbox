@@ -98,11 +98,6 @@
   @include mixins.with-vt-type('profileNote');
 }
 
-.noteListItemIcon {
-  align-self: flex-start;
-  padding-top: 1rem;
-}
-
 .noteHint {
   margin-left: auto;
 }
@@ -154,8 +149,8 @@
 }
 
 .unofficialSecurityRisk {
-  margin-bottom: 0.5rem;
-  padding-inline: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline: 1rem;
   line-height: 1.25;
   text-wrap: balance;
 }

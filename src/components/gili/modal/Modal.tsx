@@ -11,7 +11,9 @@ import {
 
 import { requestMutation } from '../../../lib/fasterdom/fasterdom';
 import buildClassName from '../../../util/buildClassName';
+import captureKeyboardListeners from '../../../util/captureKeyboardListeners';
 import { waitForAnimationEnd } from '../../../util/cssAnimationEndListeners';
+import { disableDirectTextInput, enableDirectTextInput } from '../../../util/directInputManager';
 
 import useContext from '../../../hooks/data/useContext';
 import useFrozenProps from '../../../hooks/useFrozenProps';
@@ -43,9 +45,14 @@ export type ModalProps = {
   height?: ModalHeight;
   noBackdrop?: boolean;
   noLightDismiss?: boolean;
+  noScrollable?: boolean;
+  noContentInlinePadding?: boolean;
+  keepMounted?: boolean;
+  stickyFooter?: TeactNode;
   ariaLabel?: string;
   noContainment?: boolean;
   onClose: NoneToVoidFunction;
+  onCloseAnimationEnd?: NoneToVoidFunction;
 };
 
 type ModalContextType = {
@@ -61,6 +68,18 @@ type ModalSlotProps = {
   className?: string;
   children?: TeactNode;
 };
+
+type ModalHeaderProps = {
+  noMask?: boolean;
+} & ModalSlotProps;
+
+type ModalFooterActionsProps = {
+  isVertical?: boolean;
+} & ModalSlotProps;
+
+type ModalTitleProps = {
+  noAutoFocus?: boolean;
+} & ModalSlotProps;
 
 type ModalCloseButtonProps = {
   asAbsolute?: boolean;
@@ -114,10 +133,16 @@ const Modal = ({
   height = 'regular',
   noBackdrop,
   noLightDismiss,
+  noScrollable,
+  noContentInlinePadding,
+  keepMounted,
+  stickyFooter,
   ariaLabel,
   noContainment,
   onClose,
+  onCloseAnimationEnd,
 }: ModalProps) => {
+  const [hasEverOpened, setHasEverOpened] = useState(Boolean(isOpen));
   const [shouldRender, setShouldRender] = useState(Boolean(isOpen));
   const [isClosing, setIsClosing] = useState(false);
   const [hasTitle, setHasTitle] = useState(false);
@@ -134,11 +159,14 @@ const Modal = ({
   const frozenProps = useFrozenProps({
     header,
     children,
+    stickyFooter,
     dialogClassName,
     contentClassName,
     width,
     height,
     noBackdrop,
+    noScrollable,
+    noContentInlinePadding,
     ariaLabel,
     noContainment,
   }, !isOpen);
@@ -161,12 +189,20 @@ const Modal = ({
 
     setIsClosing(false);
     setShouldRender(false);
+    onCloseAnimationEnd?.();
   });
 
   const handleRequestClose = useLastCallback(() => {
     if (isClosing) return;
 
     onClose();
+  });
+
+  const handleEsc = useLastCallback((event: KeyboardEvent) => {
+    if (noLightDismiss || !isOpen || isClosing) return;
+
+    event.preventDefault();
+    handleRequestClose();
   });
 
   const registerTitle = useLastCallback((isPresent: boolean) => {
@@ -192,6 +228,12 @@ const Modal = ({
     subtitleId,
     titleId,
   ]);
+
+  useEffect(() => {
+    if (isOpen && !hasEverOpened) {
+      setHasEverOpened(true);
+    }
+  }, [hasEverOpened, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -273,7 +315,25 @@ const Modal = ({
       return undefined;
     }
 
+    return captureKeyboardListeners({ onEsc: handleEsc });
+  }, [handleEsc, shouldRender]);
+
+  useEffect(() => {
+    if (!shouldRender) {
+      return undefined;
+    }
+
     return addBodyDialogClass();
+  }, [shouldRender]);
+
+  useEffect(() => {
+    if (!shouldRender) {
+      return undefined;
+    }
+
+    disableDirectTextInput();
+
+    return enableDirectTextInput;
   }, [shouldRender]);
 
   useEffect(() => {
@@ -322,7 +382,7 @@ const Modal = ({
     handleRequestClose();
   });
 
-  if (!shouldRender) {
+  if (!shouldRender && !(keepMounted && hasEverOpened)) {
     return undefined;
   }
 
@@ -355,7 +415,8 @@ const Modal = ({
             )}
 
             <Surface
-              scrollable
+              scrollable={!frozenProps.noScrollable}
+              noPadding={frozenProps.noContentInlinePadding}
               className={buildClassName(
                 styles.content,
                 shouldShowHeader && styles.withHeader,
@@ -366,6 +427,11 @@ const Modal = ({
                 {frozenProps.children}
               </div>
             </Surface>
+            {Boolean(frozenProps.stickyFooter) && (
+              <div className={styles.stickyFooter}>
+                {frozenProps.stickyFooter}
+              </div>
+            )}
           </div>
         </dialog>
       </ModalContext.Provider>
@@ -373,7 +439,7 @@ const Modal = ({
   );
 };
 
-const ModalHeader = ({ className, children }: ModalSlotProps) => {
+const ModalHeader = ({ noMask, className, children }: ModalHeaderProps) => {
   const modalContext = useModalContext();
 
   return (
@@ -381,6 +447,7 @@ const ModalHeader = ({ className, children }: ModalSlotProps) => {
       className={buildClassName(
         styles.header,
         modalContext?.hasSubtitle && styles.headerWithSubtitle,
+        !noMask && styles.scrollMask,
         className,
       )}
     >
@@ -397,7 +464,21 @@ const ModalHeaderAction = ({ className, children }: ModalSlotProps) => {
   );
 };
 
-const ModalTitle = ({ className, children }: ModalSlotProps) => {
+const ModalFooterActions = ({ isVertical, className, children }: ModalFooterActionsProps) => {
+  return (
+    <div
+      className={buildClassName(
+        styles.footerActions,
+        isVertical && styles.footerActionsVertical,
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+};
+
+const ModalTitle = ({ noAutoFocus, className, children }: ModalTitleProps) => {
   const modalContext = useModalContext();
 
   useLayoutEffect(() => {
@@ -413,6 +494,8 @@ const ModalTitle = ({ className, children }: ModalSlotProps) => {
       id={modalContext?.titleId}
       className={buildClassName(styles.title, className)}
       dir="auto"
+      tabIndex={-1}
+      autoFocus={!noAutoFocus}
     >
       {children}
     </div>
@@ -471,6 +554,7 @@ export default memo(Modal);
 export {
   ModalHeader,
   ModalHeaderAction,
+  ModalFooterActions,
   ModalTitle,
   ModalSubtitle,
   ModalCloseButton,

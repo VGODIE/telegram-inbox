@@ -1,7 +1,7 @@
 import type {
   ApiInputInvoice, ApiInputInvoicePremiumGiftStars, ApiInputInvoiceStarGift,
   ApiInputInvoiceStarGiftAuctionBid, ApiInputInvoiceStarGiftResale,
-  ApiRequestInputInvoice,
+  ApiPaymentFormRegular, ApiRequestInputInvoice,
 } from '../../../api/types';
 import type { ApiCredentials } from '../../../components/payment/PaymentModal';
 import type { RegularLangFnParameters } from '../../../util/localization';
@@ -56,6 +56,21 @@ import {
 const LOCAL_BOOST_COOLDOWN = 86400; // 24 hours
 const SMART_GLOCAL_DOMAIN = 'smart-glocal.com';
 const SMART_GLOCAL_TOKENIZE_PATH = '/cds/v1/tokenize/card';
+
+// Gradly: диагностика оплаты в Web A (например, @PremiumBot) — какой провайдер у счёта
+// и есть ли страница оплаты. Пишем только домен страницы, без токенов из адреса.
+function logPaymentProvider(form: ApiPaymentFormRegular) {
+  let pageHost = '—';
+  if (form.url) {
+    try {
+      pageHost = new URL(form.url).host;
+    } catch {
+      pageHost = 'invalid url';
+    }
+  }
+  // eslint-disable-next-line no-console
+  console.info(`[Gradly payments] provider=${form.nativeProvider || '—'} page=${pageHost}`);
+}
 
 function isValidSmartGlocalTokenizeUrl(tokenizeUrl: string) {
   if (tokenizeUrl !== tokenizeUrl.trim()) {
@@ -130,6 +145,7 @@ addActionHandler('openInvoice', async (global, actions, payload): Promise<void> 
   }
 
   if (form.type === 'regular') {
+    logPaymentProvider(form);
     global = updatePayment(global, {
       inputInvoice: payload,
       form,
@@ -173,7 +189,7 @@ addActionHandler('sendStarGift', (global, actions, payload): ActionReturnType =>
 
 addActionHandler('buyStarGift', (global, actions, payload): ActionReturnType => {
   const {
-    slug, peerId, price, tabId = getCurrentTabId(),
+    slug, peerId, price, message, shouldShowName, tabId = getCurrentTabId(),
   } = payload;
 
   const inputInvoice: ApiInputInvoiceStarGiftResale = {
@@ -181,6 +197,8 @@ addActionHandler('buyStarGift', (global, actions, payload): ActionReturnType => 
     slug,
     peerId,
     currency: price.currency,
+    message,
+    shouldShowName,
   };
 
   payInputStarInvoice(global, inputInvoice, price.amount, tabId);

@@ -9,6 +9,8 @@ import buildClassName from '../../util/buildClassName';
 
 import useLang from '../../hooks/useLang';
 
+import AnimatedCounter from '../common/AnimatedCounter';
+
 type OwnProps = {
   ref?: ElementRef<HTMLInputElement>;
   id?: string;
@@ -22,10 +24,12 @@ type OwnProps = {
   placeholder?: string;
   autoComplete?: string;
   maxLength?: number;
+  hasLengthIndicator?: boolean;
   tabIndex?: number;
   title?: string;
   autoFocus?: boolean;
   teactExperimentControlled?: boolean;
+  noMargin?: boolean;
   inputMode?: 'text' | 'none' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
   onInput?: (e: FormEvent<HTMLInputElement>) => void;
@@ -50,10 +54,12 @@ const InputText = ({
   autoComplete = 'off',
   inputMode,
   maxLength,
+  hasLengthIndicator,
   tabIndex,
   title,
   autoFocus,
   teactExperimentControlled,
+  noMargin,
   onChange,
   onInput,
   onKeyPress,
@@ -71,6 +77,7 @@ const InputText = ({
     disabled && 'disabled',
     readOnly && 'disabled',
     labelText && 'with-label',
+    noMargin && 'no-margin',
     className,
   );
 
@@ -105,6 +112,11 @@ const InputText = ({
       />
       {labelText && (
         <label htmlFor={id}>{labelText}</label>
+      )}
+      {hasLengthIndicator && maxLength !== undefined && (
+        <div className="max-length-indicator">
+          <AnimatedCounter text={Math.max(0, maxLength - (value || '').length).toString()} />
+        </div>
       )}
     </div>
   );

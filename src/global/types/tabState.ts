@@ -1,4 +1,6 @@
 import type {
+  ApiAiComposeTone,
+  ApiAiComposeToneExample,
   ApiAttachBot,
   ApiBirthday,
   ApiBoost,
@@ -10,14 +12,15 @@ import type {
   ApiChatType,
   ApiCheckedGiftCode,
   ApiCollectibleInfo,
-  ApiComposedMessageWithAI,
   ApiDialog,
   ApiEmojiStatusCollectible,
   ApiFormattedText,
   ApiGeoPoint,
   ApiGlobalMessageSearchType,
   ApiGroupStatistics,
+  ApiInputAiComposeTone,
   ApiInputInvoice,
+  ApiInputRichMessage,
   ApiLimitTypeWithModal,
   ApiMessage,
   ApiMissingInvitedUser,
@@ -61,12 +64,12 @@ import type {
   ApiUser,
   ApiVideo,
 } from '../../api/types';
+import type { ParsedCheckList } from '../../components/middle/composer/helpers/parseCheckList';
 import type { FoldersActions } from '../../hooks/reducers/useFoldersReducer';
 import type { ReducerAction } from '../../hooks/useReducer';
 import type {
   ActiveDownloads,
   ActiveEmojiInteraction,
-  AudioOrigin,
   ChatCreationProgress,
   ChatMediaSearchParams,
   ChatRequestedTranslations,
@@ -81,11 +84,14 @@ import type {
   ManagementState,
   MediaViewerMedia,
   MediaViewerOrigin,
+  MediaViewerPageMedia,
   MessageList,
   MessageListType,
   MiddleSearchParams,
   NewChatMembersProgress,
   PaymentStep,
+  PlaybackItemRef,
+  PlaybackSource,
   ProfileEditProgress,
   ProfileTabType,
   ResaleGiftsFilterOptions,
@@ -93,12 +99,13 @@ import type {
   SettingsScreens,
   SharedMediaType,
   ShippingOption,
+  ShuffleState,
   StarGiftInfo,
   StoryViewerOrigin,
   TabThread,
   ThreadId,
 } from '../../types';
-import type { WebApp, WebAppModalStateType } from '../../types/webapp';
+import type { BrowserState } from '../../types/browser';
 import type { SearchResultKey } from '../../util/keys/searchResultKey';
 import type { RegularLangFnParameters } from '../../util/localization';
 import type { ProfileCollectionKey } from '../selectors/payments';
@@ -109,10 +116,60 @@ export type PollVote = {
   date: number;
 };
 
+export type ReactionDeletionContext = {
+  peerId: string;
+  count: number;
+};
+
+export type AiEditorContent = {
+  type: 'text';
+  text: ApiFormattedText;
+} | {
+  type: 'rich';
+  richMessage: ApiInputRichMessage;
+};
+
+export type AiEditorResult = {
+  type: 'text';
+  text: ApiFormattedText;
+  diffText?: ApiFormattedText;
+} | {
+  type: 'rich';
+  richMessage: ApiInputRichMessage;
+};
+
 export type AiEditorTabBase = {
   isLoading?: boolean;
-  result?: ApiComposedMessageWithAI;
+  requestId?: number;
+  result?: AiEditorResult;
   error?: 'floodPremium' | 'aiError' | 'generic';
+};
+
+type ReportOptionsSection = {
+  type: 'options';
+  title: string;
+  subtitle?: string;
+  options: {
+    text: string;
+    option: string;
+  }[];
+};
+
+type ReportCommentSection = {
+  type: 'comment';
+  title?: string;
+  isOptional?: boolean;
+  option: string;
+};
+
+export type ReportSection = ReportOptionsSection | ReportCommentSection;
+
+type MessageReportContext = {
+  option: string;
+  description: string;
+  title?: string;
+  sections: ReportSection[];
+  isSubmitting?: boolean;
 };
 
 export type TabState = {
@@ -121,6 +178,8 @@ export type TabState = {
   isMasterTab: boolean;
   inactiveReason?: 'auth' | 'otherClient';
   shouldPreventComposerAnimation?: boolean;
+  isRichInputExpanded?: boolean;
+  richMediaUploadBlockingCount?: number;
   inviteHash?: string;
   canInstall?: boolean;
   isStatisticsShown?: boolean;
@@ -129,18 +188,6 @@ export type TabState = {
   uiReadyState: 0 | 1 | 2;
   shouldInit: boolean;
   shouldSkipHistoryAnimations?: boolean;
-
-  gifSearch: {
-    query?: string;
-    offset?: string;
-    results?: ApiVideo[];
-  };
-
-  stickerSearch: {
-    query?: string;
-    hash?: string;
-    resultIds?: string[];
-  };
 
   shouldCloseRightColumn?: boolean;
   chatInfo: {
@@ -177,6 +224,7 @@ export type TabState = {
   activeChatFolder: number;
   tabThreads: Record<string, Record<ThreadId, TabThread>>;
   forumPanelChatId?: string;
+  communityPanelId?: string;
 
   focusedMessage?: {
     chatId?: string;
@@ -193,6 +241,7 @@ export type TabState = {
   selectedMessages?: {
     chatId: string;
     messageIds: number[];
+    reportContext?: MessageReportContext;
   };
 
   chatInviteModal?: {
@@ -301,13 +350,6 @@ export type TabState = {
     }>>;
   };
 
-  userSearch: {
-    query?: string;
-    fetchingStatus?: boolean;
-    localUserIds?: string[];
-    globalUserIds?: string[];
-  };
-
   activeEmojiInteractions?: ActiveEmojiInteraction[];
   activeReactions: Record<string, ApiReactionWithPaid[]>;
 
@@ -335,7 +377,7 @@ export type TabState = {
     byChatId: Record<string, ManagementState>;
   };
 
-  isPaymentMessageConfirmDialogOpen: boolean;
+  paymentMessageConfirmDialogKey?: string;
 
   storyViewer: {
     isRibbonShown?: boolean;
@@ -380,24 +422,31 @@ export type TabState = {
     isAvatarView?: boolean;
     isSponsoredMessage?: boolean;
     standaloneMedia?: MediaViewerMedia[];
+    pageMedia?: MediaViewerPageMedia;
     origin?: MediaViewerOrigin;
     volume: number;
     playbackRate: number;
     isMuted: boolean;
     isHidden?: boolean;
     timestamp?: number;
+    shouldLandInMediaEditor?: boolean;
   };
 
   audioPlayer: {
-    chatId?: string;
-    messageId?: number;
-    threadId?: ThreadId;
-    origin?: AudioOrigin;
+    activeItem?: PlaybackItemRef;
+    source?: PlaybackSource;
     playbackRate: number;
     isPlaybackRateActive?: boolean;
     timestamp?: number;
     isMuted: boolean;
+    shuffle?: ShuffleState;
+    pendingStep?: {
+      direction: 'next' | 'prev';
+      isAuto?: boolean;
+    };
   };
+
+  isAudioPlaylistModalOpen?: boolean;
 
   webPagePreviewId?: string;
 
@@ -421,6 +470,8 @@ export type TabState = {
     fromChatId?: string;
     messageIds?: number[];
     storyId?: number;
+    audioItem?: PlaybackItemRef;
+    audioPendingSend?: { toChatId: string; toThreadId?: ThreadId; stars: number };
     toChatId?: string;
     toThreadId?: ThreadId;
     withMyScore?: boolean;
@@ -527,16 +578,7 @@ export type TabState = {
     description: string;
     peerId?: string;
     subject: 'story' | 'message';
-    sections: {
-      title?: string;
-      subtitle?: string;
-      options?: {
-        text: string;
-        option: string;
-      }[];
-      isOptional?: boolean;
-      option?: string;
-    }[];
+    sections: ReportSection[];
   };
 
   activeDownloads: ActiveDownloads;
@@ -579,6 +621,7 @@ export type TabState = {
     chatId: string;
     messageId?: number;
     forNewTask?: boolean;
+    initialCheckList?: ParsedCheckList;
   };
 
   preparedMessageModal?: {
@@ -598,15 +641,7 @@ export type TabState = {
     };
   };
 
-  webApps: {
-    activeWebAppKey?: string;
-    openedOrderedKeys: string[];
-    sessionKeys: string[];
-    openedWebApps: Record<string, WebApp>;
-    modalState: WebAppModalStateType;
-    isModalOpen: boolean;
-    isMoreAppsTabActive: boolean;
-  };
+  browser: BrowserState;
 
   botTrustRequest?: {
     botId: string;
@@ -621,6 +656,10 @@ export type TabState = {
   requestedAttachBotInChat?: {
     bot: ApiAttachBot;
     filter: ApiChatType[];
+    startParam?: string;
+  };
+  requestedBotStartGroup?: {
+    bot: ApiUser;
     startParam?: string;
   };
 
@@ -674,28 +713,45 @@ export type TabState = {
 
   aiMessageEditorModal?: {
     chatId: string;
-    text: ApiFormattedText;
+    threadId: ThreadId;
+    content: AiEditorContent;
     activeTab: 'translate' | 'style' | 'fix';
     isFromAttachment?: boolean;
+    isEditing?: boolean;
     translateTab?: AiEditorTabBase & {
       selectedLanguage?: string;
-      selectedTone?: string;
+      selectedTone?: ApiInputAiComposeTone;
       shouldEmojify?: boolean;
-      cache?: Record<string, ApiComposedMessageWithAI>;
+      cache?: Record<string, AiEditorResult>;
     };
     styleTab?: AiEditorTabBase & {
-      selectedTone?: string;
+      selectedTone?: ApiInputAiComposeTone;
+      customPrompt?: string;
       shouldEmojify?: boolean;
-      cache?: Record<string, ApiComposedMessageWithAI>;
+      cache?: Record<string, AiEditorResult>;
     };
     fixTab?: AiEditorTabBase & {
-      cache?: ApiComposedMessageWithAI;
+      cache?: AiEditorResult;
     };
   };
 
+  aiToneEditorModal?: {
+    toneToEdit?: ApiAiComposeTone;
+  };
+
+  aiTonePreviewModal?: {
+    slug: string;
+    tone?: ApiAiComposeTone;
+    example?: ApiAiComposeToneExample;
+    isAlreadyAdded?: boolean;
+    hasExampleError?: boolean;
+  };
+
   aiMessageEditorPendingResult?: {
-    text?: ApiFormattedText;
-    shouldClear?: boolean;
+    content: AiEditorContent;
+    chatId: string;
+    threadId: ThreadId;
+    shouldSend?: boolean;
     shouldSendWithAttachments?: boolean;
     isSilent?: boolean;
     scheduledAt?: number;
@@ -717,9 +773,15 @@ export type TabState = {
     messageIds: number[];
     isSchedule?: boolean;
     onConfirm?: NoneToVoidFunction;
+    reactionContext?: ReactionDeletionContext;
   };
 
-  isWebAppsCloseConfirmationModalOpen?: boolean;
+  deleteMemberModal?: {
+    chatId: string;
+    peerId: string;
+  };
+
+  isBrowserCloseConfirmationModalOpen?: boolean;
 
   isGiftRecipientPickerOpen?: boolean;
 
@@ -836,6 +898,8 @@ export type TabState = {
 
   birthdaySetupModal?: {
     currentBirthday?: ApiBirthday;
+    suggestForUserId?: string;
+    isFromSuggestion?: boolean;
   };
 
   paidReactionModal?: {
@@ -866,6 +930,10 @@ export type TabState = {
     peerId: string;
     type: 'phone' | 'username';
     collectible: string;
+  };
+
+  qrCodeModal?: {
+    peerId: string;
   };
 
   starsBalanceModal?: {
@@ -1067,6 +1135,10 @@ export type TabState = {
     nextOwnerId?: string;
   };
 
+  autoDeleteTimerModal?: {
+    chatId: string;
+  };
+
   isTwoFaCheckModalOpen?: true;
 
   isWaitingForStarGiftUpgrade?: true;
@@ -1090,5 +1162,8 @@ export type TabState = {
     isOwner?: boolean;
     rank?: string;
   };
-  shouldOpenMessageMediaEditor?: boolean;
+  messageMediaEditorRequest?: {
+    chatId: string;
+    messageId: number;
+  };
 };

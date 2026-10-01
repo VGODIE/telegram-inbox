@@ -1,10 +1,10 @@
-import type React from '../../../lib/teact/teact';
 import { memo, useMemo } from '../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../global';
 
 import type { ApiUser } from '../../../api/types';
 import type { GlobalState } from '../../../global/types';
 import type { AnimationLevel, ThemeKey } from '../../../types';
+import { SettingsScreens } from '../../../types';
 
 import {
   ANIMATION_LEVEL_MAX,
@@ -31,11 +31,13 @@ import { getPromptInstall } from '../../../util/installPrompt';
 import { switchPermanentWebVersion } from '../../../util/permanentWebVersion';
 import { getSystemTheme } from '../../../util/systemTheme';
 
+import useFlag from '../../../hooks/useFlag';
 import { useFolderManagerForUnreadCounters } from '../../../hooks/useFolderManager';
 import useLang from '../../../hooks/useLang';
 import useLastCallback from '../../../hooks/useLastCallback';
 
 import AttachBotItem from '../../middle/composer/AttachBotItem';
+import ConfirmDialog from '../../ui/ConfirmDialog';
 import MenuItem from '../../ui/MenuItem';
 import MenuSeparator from '../../ui/MenuSeparator';
 import NestedMenuItem from '../../ui/NestedMenuItem';
@@ -59,6 +61,7 @@ type StateProps = {
   canInstall?: boolean;
   attachBots: GlobalState['attachMenu']['bots'];
   accountsTotalLimit: number;
+  hasPasscode?: boolean;
 } & Pick<GlobalState, 'currentUserId' | 'archiveSettings'>;
 
 const LeftSideMenuItems = ({
@@ -70,6 +73,7 @@ const LeftSideMenuItems = ({
   attachBots,
   currentUser,
   accountsTotalLimit,
+  hasPasscode,
   onSelectArchived,
   onSelectContacts,
   onSelectSettings,
@@ -84,8 +88,10 @@ const LeftSideMenuItems = ({
     openChatByUsername,
     openUrl,
     openChatWithInfo,
+    openSettingsScreen,
   } = getActions();
   const lang = useLang();
+  const [isSwitchToWebKDialogOpen, openSwitchToWebKDialog, closeSwitchToWebKDialog] = useFlag();
 
   const animationLevelValue = animationLevel !== ANIMATION_LEVEL_MIN
     ? (animationLevel === ANIMATION_LEVEL_MAX ? 'max' : 'mid') : 'min';
@@ -132,8 +138,19 @@ const LeftSideMenuItems = ({
     window.open(BETA_CHANGELOG_URL, '_blank', 'noopener,noreferrer');
   });
 
-  const handleSwitchToWebK = useLastCallback(() => {
+  const handleSwitchToWebK = useLastCallback((e: React.SyntheticEvent<HTMLElement>) => {
+    e.preventDefault();
+    if (hasPasscode) {
+      openSwitchToWebKDialog();
+      return;
+    }
+
     switchPermanentWebVersion('K');
+  });
+
+  const handleOpenPasscodeSettings = useLastCallback(() => {
+    closeSwitchToWebKDialog();
+    openSettingsScreen({ screen: SettingsScreens.PasscodeTurnOff });
   });
 
   const handleOpenTipsChat = useLastCallback(() => {
@@ -272,6 +289,14 @@ const LeftSideMenuItems = ({
       >
         {lang('MenuMore')}
       </NestedMenuItem>
+      <ConfirmDialog
+        isOpen={isSwitchToWebKDialogOpen}
+        title={lang('MenuSwitchToK')}
+        text={lang('PasscodeSwitchToKInfo')}
+        confirmLabel={lang('Continue')}
+        confirmHandler={handleOpenPasscodeSettings}
+        onClose={closeSwitchToWebKDialog}
+      />
     </>
   );
 };
@@ -294,6 +319,7 @@ export default memo(withGlobal<OwnProps>(
       archiveSettings,
       attachBots,
       accountsTotalLimit: selectPremiumLimit(global, 'moreAccounts'),
+      hasPasscode: global.passcode.hasPasscode,
     };
   },
 )(LeftSideMenuItems));

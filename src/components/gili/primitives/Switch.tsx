@@ -20,6 +20,7 @@ type OwnProps = {
   checked: boolean;
   disabled?: boolean;
   locked?: boolean;
+  nonInteractive?: boolean;
   withPermissionColors?: boolean;
   className?: string;
   onChange?: (checked: boolean) => void;
@@ -31,10 +32,12 @@ const Switch = ({
   checked,
   disabled,
   locked,
+  nonInteractive,
   withPermissionColors,
   className,
   onChange,
   id,
+  tabIndex,
   ...restProps
 }: Props) => {
   const control = useControlContext();
@@ -44,7 +47,7 @@ const Switch = ({
   const isDisabled = disabled || interactive?.isDisabled || interactive?.isLoading;
 
   const handleChange = useLastCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (locked) return;
+    if (locked || nonInteractive) return;
 
     onChange?.(e.currentTarget.checked);
   });
@@ -54,9 +57,10 @@ const Switch = ({
   return (
     <span
       className={buildClassName(
+        'Switch',
         styles.root,
         isDisabled && styles.disabled,
-        locked && styles.locked,
+        (locked || nonInteractive) && styles.nonInteractive,
         withPermissionColors && styles.permissionColors,
         control?.inputClassName,
         className,
@@ -68,14 +72,16 @@ const Switch = ({
         role="switch"
         id={resolvedId}
         checked={checked}
-        disabled={isDisabled || locked}
+        disabled={isDisabled || locked || nonInteractive}
+        tabIndex={nonInteractive ? -1 : tabIndex}
+        aria-disabled={nonInteractive || undefined}
         className={styles.input}
         onChange={handleChange}
       />
       <span className={styles.track} aria-hidden>
         <span className={styles.thumb}>
           <ShowTransition isOpen={Boolean(locked)} className={styles.lockIconTransition}>
-            <Icon name="lock-badge" className={styles.lockIcon} />
+            <Icon name="lock-filled" className={styles.lockIcon} />
           </ShowTransition>
         </span>
       </span>

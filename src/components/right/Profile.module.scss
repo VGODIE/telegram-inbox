@@ -7,7 +7,7 @@
   height: 100%;
 
   :global(.FloatingActionButton) {
-    z-index: 1;
+    z-index: 3;
 
     @include mixins.with-vt-type('rightColumn');
 
@@ -35,28 +35,32 @@
       color: var(--color-primary);
     }
   }
-
-  :global(.ChatExtra) {
-
-    :global(.narrow) {
-      margin-bottom: 0;
-    }
-
-    :global([dir="rtl"]) {
-      :global(.Switcher) {
-        margin-right: auto;
-        margin-left: 0;
-      }
-    }
-  }
 }
 
-.chatExtraBlock {
+.chatExtraBlock,
+.linkedCommunityIsland {
   margin: 1rem;
   margin-bottom: 0;
 
   @include mixins.adapt-margin-to-scrollbar(1rem);
-  @include mixins.with-vt-type('rightColumn');
+}
+
+.chatExtraBlock {
+  :global(.narrow) {
+    margin-bottom: 0;
+  }
+
+  :global([dir="rtl"]) {
+    :global(.Switcher) {
+      margin-right: auto;
+      margin-left: 0;
+    }
+  }
+}
+
+.linkedCommunityAvatar {
+  flex-shrink: 0;
+  margin-inline-end: 0.5rem;
 }
 
 .sharedMediaTabs {
@@ -70,7 +74,6 @@
   padding-inline: 1rem;
 
   @include mixins.adapt-padding-to-scrollbar(1rem);
-  @include mixins.with-vt-type('rightColumn');
 
   &::before {
     pointer-events: none;
@@ -129,6 +132,7 @@
 }
 
 .sharedMedia {
+  isolation: isolate;
   position: relative;
 
   display: flex;
@@ -136,8 +140,6 @@
   flex-direction: column;
 
   margin-top: 1rem;
-
-  @include mixins.with-vt-type('rightColumn');
 
   :global(.info .Transition) {
     flex-grow: 0;
@@ -218,7 +220,6 @@
   &.previewMediaList {
     overflow: hidden;
     margin-inline-start: var(--scrollbar-width);
-    border-radius: var(--border-radius-island);
   }
 
   &.giftsList {
@@ -243,6 +244,12 @@
     :global(.message-transfer-progress) {
       display: none;
     }
+  }
+
+  &.pollsList {
+    padding: 1rem;
+
+    @include mixins.adapt-padding-to-scrollbar(1rem);
   }
 
   &.audioList,

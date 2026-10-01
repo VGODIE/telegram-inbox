@@ -633,8 +633,15 @@ export default memo(withGlobal<OwnProps>(
       providerName = url.startsWith(DONATE_PROVIDER_URL) ? DONATE_PROVIDER : undefined;
     }
 
+    // Gradly: провайдер, которого Web A не умеет нативно (например, у @PremiumBot), но у счёта есть
+    // страница оплаты — открываем её во фрейме ConfirmPayment. Данные карты страница вернёт событием
+    // payment_form_submit, и они уйдут в sendPaymentForm как есть (core.telegram.org/api/payments).
+    const providerPageUrl = form?.url && !SUPPORTED_PROVIDERS.has(providerName || '') ? form.url : undefined;
+
     const chat = inputInvoice && 'chatId' in inputInvoice ? selectChat(global, inputInvoice.chatId) : undefined;
-    const isProviderError = Boolean(invoice && (!providerName || !SUPPORTED_PROVIDERS.has(providerName)));
+    const isProviderError = Boolean(
+      invoice && !providerPageUrl && (!providerName || !SUPPORTED_PROVIDERS.has(providerName)),
+    );
     const { needCardholderName, needCountry, needZip } = (nativeParams || {});
     const bot = form?.botId ? selectUser(global, form.botId) : undefined;
     const botName = getUserFullName(bot);
@@ -651,8 +658,8 @@ export default memo(withGlobal<OwnProps>(
       needCountry,
       needZip,
       error,
-      confirmPaymentUrl: confirmPaymentUrl ?? url,
-      isPaymentFormUrl: Boolean(!nativeProvider && url),
+      confirmPaymentUrl: confirmPaymentUrl ?? url ?? providerPageUrl,
+      isPaymentFormUrl: Boolean((!nativeProvider && url) || providerPageUrl),
       countryList,
       requestId,
       hasShippingOptions: Boolean(shippingOptions?.length),

@@ -7,11 +7,10 @@ import type { GlobalState } from '../../global/types';
 
 import { IS_TAURI } from '../../util/browser/globalEnvironment';
 import { IS_MAC_OS, PLATFORM_ENV } from '../../util/browser/windowEnvironment';
+import { getIframeBootstrap } from '../../util/iframeAutoLogin';
 
 import useCurrentOrPrev from '../../hooks/useCurrentOrPrev';
 import useHistoryBack from '../../hooks/useHistoryBack';
-
-import { getIframeBootstrap } from '../../util/iframeAutoLogin';
 
 import Transition from '../ui/Transition';
 import AuthCode from './AuthCode.async';

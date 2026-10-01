@@ -8,6 +8,7 @@ import { IS_TOUCH_ENV, MouseButton } from '../../util/browser/windowEnvironment'
 import buildClassName from '../../util/buildClassName';
 import buildStyle from '../../util/buildStyle';
 
+import { useFileHoverOpenHandler } from '../../hooks/useFileHoverOpen';
 import useLastCallback from '../../hooks/useLastCallback';
 import useOldLang from '../../hooks/useOldLang';
 
@@ -58,6 +59,7 @@ export type OwnProps = {
   withSparkleEffect?: boolean;
   noSparkleAnimation?: boolean;
   noPreventDefault?: boolean;
+  noClickTransitionReset?: boolean;
   noForcedUpperCase?: boolean;
   shouldStopPropagation?: boolean;
   style?: string;
@@ -65,6 +67,7 @@ export type OwnProps = {
   iconName?: IconName;
   iconAlignment?: 'top' | 'bottom' | 'start' | 'end';
   iconClassName?: string;
+  iconHasPremiumBadge?: boolean;
   onClick?: (e: ReactMouseEvent<HTMLButtonElement, MouseEvent>) => void;
   onContextMenu?: (e: ReactMouseEvent<HTMLButtonElement, MouseEvent>) => void;
   onMouseDown?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -73,6 +76,7 @@ export type OwnProps = {
   onMouseLeave?: NoneToVoidFunction;
   onFocus?: NoneToVoidFunction;
   onTransitionEnd?: NoneToVoidFunction;
+  onFileHoverOpen?: NoneToVoidFunction;
 };
 
 // Longest animation duration;
@@ -114,6 +118,7 @@ const Button = ({
   isRtl,
   isRectangular,
   noPreventDefault,
+  noClickTransitionReset,
   shouldStopPropagation,
   noForcedUpperCase,
   style,
@@ -121,6 +126,7 @@ const Button = ({
   iconName,
   iconAlignment = 'start',
   iconClassName,
+  iconHasPremiumBadge,
   onClick,
   onContextMenu,
   onMouseDown,
@@ -129,6 +135,7 @@ const Button = ({
   onMouseLeave,
   onFocus,
   onTransitionEnd,
+  onFileHoverOpen,
 }: OwnProps) => {
   let elementRef = useRef<HTMLButtonElement | HTMLAnchorElement>();
   if (ref) {
@@ -138,6 +145,7 @@ const Button = ({
   const lang = useOldLang();
 
   const [isClicked, setIsClicked] = useState(false);
+  const handleFileHoverOpen = useFileHoverOpenHandler(onFileHoverOpen);
 
   const isNotInteractive = disabled || nonInteractive;
 
@@ -174,6 +182,8 @@ const Button = ({
 
     if (shouldStopPropagation) e.stopPropagation();
 
+    if (noClickTransitionReset) return;
+
     setIsClicked(true);
     setTimeout(() => {
       setIsClicked(false);
@@ -194,13 +204,13 @@ const Button = ({
 
   const renderIcon = () => {
     if (!iconName) return undefined;
-    return <Icon name={iconName} className={iconClassName} />;
+    return <Icon name={iconName} className={iconClassName} hasPremiumBadge={iconHasPremiumBadge} />;
   };
 
   const renderContent = () => {
     if (isLoading) {
       return (
-        <div>
+        <div className="loading-content">
           <span dir={isRtl ? 'auto' : undefined}>{lang('Cache.ClearProgress')}</span>
           <Spinner color={isText ? 'blue' : 'white'} />
         </div>
@@ -251,6 +261,8 @@ const Button = ({
         aria-controls={ariaControls}
         style={style}
         onTransitionEnd={onTransitionEnd}
+        data-file-hover-open={onFileHoverOpen ? true : undefined}
+        onFileHoverOpen={onFileHoverOpen ? handleFileHoverOpen : undefined}
         target="_blank"
         rel="noreferrer"
       >
@@ -273,7 +285,9 @@ const Button = ({
       onMouseLeave={onMouseLeave && !isNotInteractive ? onMouseLeave : undefined}
       onTransitionEnd={onTransitionEnd}
       onFocus={onFocus && !isNotInteractive ? onFocus : undefined}
-      disabled={disabled}
+      data-file-hover-open={onFileHoverOpen ? true : undefined}
+      onFileHoverOpen={onFileHoverOpen ? handleFileHoverOpen : undefined}
+      disabled={disabled && !allowDisabledClick}
       autoFocus={autoFocus}
       aria-label={ariaLabel}
       aria-controls={ariaControls}

@@ -1,5 +1,4 @@
 import type { FC } from '../../lib/teact/teact';
-import type React from '../../lib/teact/teact';
 import {
   useCallback, useMemo, useRef, useState,
 } from '../../lib/teact/teact';
@@ -41,7 +40,7 @@ const DropdownMenu: FC<OwnProps> = ({
   transformOriginX,
   transformOriginY,
   positionX = 'left',
-  positionY = 'top',
+  positionY,
   footer,
   forceOpen,
   withPortal,
@@ -110,9 +109,7 @@ const DropdownMenu: FC<OwnProps> = ({
 
   const getTriggerElement = useLastCallback(() => triggerRef.current);
   const getRootElement = useLastCallback(() => document.body);
-  const getMenuElement = useLastCallback(
-    () => menuRef.current?.querySelector('.bubble') as HTMLElement | undefined,
-  );
+  const getMenuElement = useLastCallback(() => menuRef.current);
   const getLayout = useLastCallback(() => ({ withPortal: true }));
 
   return (

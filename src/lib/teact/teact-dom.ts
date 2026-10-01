@@ -11,7 +11,7 @@ import type {
   VirtualElementTag,
 } from './teact';
 
-import { DEBUG } from '../../config';
+import { DEBUG, IS_PERF } from '../../config';
 import { addEventListener, removeAllDelegatedListeners, removeEventListener } from './dom-events';
 import {
   captureImmediateEffects,
@@ -42,6 +42,7 @@ type DOMElement = HTMLElement | SVGElement;
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+const HAS_MOVE_BEFORE_SUPPORT = typeof Element !== 'undefined' && 'moveBefore' in Element.prototype;
 
 const FILTERED_ATTRIBUTES = new Set(['key', 'ref', 'teactFastList', 'teactOrderKey']);
 const HTML_ATTRIBUTES = new Set(['dir', 'role', 'form']);
@@ -53,6 +54,7 @@ const MAPPED_ATTRIBUTES: Partial<Record<string, string>> = {
   autoPlay: 'autoplay',
   spellCheck: 'spellcheck',
   autoFocus: 'autofocus',
+  srcDoc: 'srcdoc',
 };
 const INDEX_KEY_PREFIX = '__indexKey#';
 const SELECTION_STATE_ATTRIBUTE = '__teactSelectionState';
@@ -77,7 +79,7 @@ function render($element: VirtualElement | undefined, parentEl: HTMLElement) {
 
   $head.children = $renderedChild ? [$renderedChild] : [];
 
-  if (process.env.APP_ENV === 'perf') {
+  if (IS_PERF) {
     DEBUG_virtualTreeSize = 0;
     DEBUG_addToVirtualTreeSize($head);
 
@@ -413,7 +415,7 @@ function remount(
   } else {
     if (node) {
       parentEl.replaceChild(node, $current.target!);
-    } else {
+    } else if ($current.target!.parentNode === parentEl) {
       parentEl.removeChild($current.target!);
     }
 
@@ -451,7 +453,9 @@ function unmountRealTree($element: VirtualElement) {
 }
 
 function insertBefore(parentEl: DOMElement | DocumentFragment, node: Node, nextSibling?: ChildNode) {
-  if (nextSibling) {
+  if (HAS_MOVE_BEFORE_SUPPORT && node.isConnected && node.parentNode === parentEl) {
+    parentEl.moveBefore(node, nextSibling!);
+  } else if (nextSibling) {
     parentEl.insertBefore(node, nextSibling);
   } else {
     parentEl.appendChild(node);

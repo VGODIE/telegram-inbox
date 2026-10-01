@@ -9,7 +9,16 @@ import {
   SESSION_ACCOUNT_PREFIX,
 } from '../config';
 import { IS_MULTIACCOUNT_SUPPORTED } from './browser/globalEnvironment';
+import { broadcastPasscodeSessionsChanged } from './passcode/channel';
+import {
+  getSessionValueKeys,
+  isSessionStoreLocked,
+  readSessionValue,
+  writeSessionValue,
+} from './passcode/sessionStore';
+import { getAccountSlot } from './accountSlot';
 import { ALLOWED_ACCOUNT_SLOTS } from './iframeAutoLogin';
+import { getDekGeneration, refreshSessionsVault, requestPasscodeStateLock } from './passcode';
 
 const WORKER_NAME = typeof WorkerGlobalScope !== 'undefined' && globalThis.self instanceof WorkerGlobalScope
   ? globalThis.self.name : undefined;
@@ -22,37 +31,43 @@ export const ACCOUNT_SLOT = WORKER_ACCOUNT_SLOT || (
 export const DATA_BROADCAST_CHANNEL_NAME = `${DATA_BROADCAST_CHANNEL_PREFIX}_${ACCOUNT_SLOT || 1}`;
 export const ESTABLISH_BROADCAST_CHANNEL_NAME = `${ESTABLISH_BROADCAST_CHANNEL_PREFIX}_${ACCOUNT_SLOT || 1}`;
 export const MULTITAB_STORAGE_KEY = `${MULTITAB_LOCALSTORAGE_KEY_PREFIX}_${ACCOUNT_SLOT || 1}`;
-export const GLOBAL_STATE_CACHE_KEY = ACCOUNT_SLOT
-  ? `${GLOBAL_STATE_CACHE_PREFIX}_${ACCOUNT_SLOT}` : GLOBAL_STATE_CACHE_PREFIX;
+export const GLOBAL_STATE_CACHE_KEY = getGlobalStateCacheKey(ACCOUNT_SLOT);
 
-export function getAccountSlot(url: string) {
-  const params = new URL(url).searchParams;
-  const slot = params.get(ACCOUNT_QUERY);
-  const slotNumber = slot ? Number(slot) : 1;
-  if (!slotNumber || Number.isNaN(slotNumber) || slotNumber === 1) return undefined;
-  return slotNumber;
+export function getGlobalStateCacheKey(slot?: number) {
+  return slot && slot !== 1 ? `${GLOBAL_STATE_CACHE_PREFIX}_${slot}` : GLOBAL_STATE_CACHE_PREFIX;
 }
+
+export { getAccountSlot } from './accountSlot';
 
 export function getAccountsInfo() {
   if (!IS_MULTIACCOUNT_SUPPORTED) return {};
-  const allKeys = Object.keys(localStorage);
-  const allSlots = allKeys.filter((key) => key.startsWith(SESSION_ACCOUNT_PREFIX));
   const accountInfo: Record<number, AccountInfo> = {};
-  for (const key of allSlots) {
-    const i = Number(key.slice(SESSION_ACCOUNT_PREFIX.length));
+  for (const slot of getAccountSlots()) {
     // Inside the Gradly embed: only the slots owned by the Gradly user who is
     // signed in right now. This is the single choke point for every consumer —
     // the account menu, the "already authorized elsewhere" redirect in
     // onUpdateUserAlreadyAuthorized, the userIds handed to initApi, the account
     // counters. Sessions themselves stay in localStorage untouched, so
     // switching back to another Gradly account restores its accounts as-is.
-    if (ALLOWED_ACCOUNT_SLOTS && !ALLOWED_ACCOUNT_SLOTS.has(i)) continue;
-    const info = getAccountInfo(i);
+    if (ALLOWED_ACCOUNT_SLOTS && !ALLOWED_ACCOUNT_SLOTS.has(slot)) continue;
+    const info = getAccountInfo(slot);
     if (info) {
-      accountInfo[i] = info;
+      accountInfo[slot] = info;
     }
   }
   return accountInfo;
+}
+
+export function getAccountSlots() {
+  return getSessionValueKeys()
+    .filter((key) => key.startsWith(SESSION_ACCOUNT_PREFIX))
+    .map((key) => Number(key.slice(SESSION_ACCOUNT_PREFIX.length)))
+    .filter((slot) => slot > 0 && Number.isInteger(slot))
+    .sort((first, second) => first - second);
+}
+
+export function getFirstLoggedInAccountSlot(accounts = getAccountsInfo()) {
+  return Object.keys(accounts).map(Number).sort((a, b) => a - b)[0];
 }
 
 function getAccountInfo(slot: number): AccountInfo | undefined {
@@ -78,7 +93,7 @@ function getAccountInfo(slot: number): AccountInfo | undefined {
 
 export function loadSlotSession(slot: number | undefined): SharedSessionData | undefined {
   try {
-    const data = JSON.parse(localStorage.getItem(`${SESSION_ACCOUNT_PREFIX}${slot || 1}`) || '{}') as SharedSessionData;
+    const data = JSON.parse(readSessionValue(`${SESSION_ACCOUNT_PREFIX}${slot || 1}`) || '{}') as SharedSessionData;
     if (!data.dcId) return undefined;
     return data;
   } catch (e) {
@@ -87,22 +102,35 @@ export function loadSlotSession(slot: number | undefined): SharedSessionData | u
 }
 
 export function storeAccountData(slot: number | undefined, data: Partial<SessionUserInfo>) {
-  const currentSlotData = loadSlotSession(slot);
+  return updateSessionStorage(() => {
+    const currentSlotData = loadSlotSession(slot);
 
-  if (!currentSlotData) return;
+    if (!currentSlotData) return;
 
-  const updatedSharedData: SharedSessionData = {
-    ...currentSlotData,
-    ...data,
-  };
+    const updatedSharedData: SharedSessionData = {
+      ...currentSlotData,
+      ...data,
+    };
 
-  if (!updatedSharedData.userId) return;
+    if (!updatedSharedData.userId) return;
 
-  writeSlotSession(slot, updatedSharedData);
+    writeSlotSession(slot, updatedSharedData);
+  });
 }
 
-export function writeSlotSession(slot: number | undefined, data: SharedSessionData) {
-  localStorage.setItem(`${SESSION_ACCOUNT_PREFIX}${slot || 1}`, JSON.stringify(data));
+function writeSlotSession(slot: number | undefined, data: SharedSessionData) {
+  writeSessionValue(`${SESSION_ACCOUNT_PREFIX}${slot || 1}`, JSON.stringify(data));
+}
+
+export function updateSessionStorage(update: NoneToVoidFunction) {
+  return requestPasscodeStateLock(async () => {
+    if (isSessionStoreLocked()) return;
+
+    update();
+    const generation = getDekGeneration();
+    const isUpdated = await refreshSessionsVault().catch(() => false);
+    if (generation && isUpdated) broadcastPasscodeSessionsChanged(generation);
+  });
 }
 
 export function getAccountSlotUrl(slot: number, forLogin?: boolean, isTest?: boolean) {

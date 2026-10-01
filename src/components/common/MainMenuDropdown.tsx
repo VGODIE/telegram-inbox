@@ -1,4 +1,5 @@
 import { type FC, memo } from '@teact';
+import { APP_REVISION } from 'virtual:git-info';
 import { getActions } from '../../global';
 
 import { LeftColumnContent, SettingsScreens } from '../../types';
@@ -29,7 +30,9 @@ const LeftSideMenuDropdown = ({
   shouldHideSearch,
   className,
 }: OwnProps) => {
-  const { openLeftColumnContent, closeForumPanel, openSettingsScreen } = getActions();
+  const {
+    openLeftColumnContent, closeForumPanel, closeCommunityPanel, openSettingsScreen,
+  } = getActions();
   const [isBotMenuOpen, markBotMenuOpen, unmarkBotMenuOpen] = useFlag();
   const lang = useLang();
 
@@ -52,6 +55,7 @@ const LeftSideMenuDropdown = ({
   const handleSelectArchived = useLastCallback(() => {
     openLeftColumnContent({ contentKey: LeftColumnContent.Archived });
     closeForumPanel();
+    closeCommunityPanel();
   });
 
   return (
